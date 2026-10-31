@@ -1,3 +1,5 @@
+import java.util.Properties
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.compose)
@@ -5,6 +7,24 @@ plugins {
     alias(libs.plugins.jetbrains.kotlin.plugin.serialization)
     id("com.google.gms.google-services")
 }
+
+val releaseSigningPropertiesFile = rootProject.file("keystore.properties")
+val releaseSigningProperties = Properties().apply {
+    if (releaseSigningPropertiesFile.isFile) {
+        releaseSigningPropertiesFile.inputStream().use(::load)
+    }
+}
+val releaseSigningValues = mapOf(
+    "storeFile" to (System.getenv("ANDROID_KEYSTORE_FILE")
+        ?: releaseSigningProperties.getProperty("storeFile")),
+    "storePassword" to (System.getenv("ANDROID_KEYSTORE_PASSWORD")
+        ?: releaseSigningProperties.getProperty("storePassword")),
+    "keyAlias" to (System.getenv("ANDROID_KEY_ALIAS")
+        ?: releaseSigningProperties.getProperty("keyAlias")),
+    "keyPassword" to (System.getenv("ANDROID_KEY_PASSWORD")
+        ?: releaseSigningProperties.getProperty("keyPassword"))
+)
+val hasReleaseSigningValues = releaseSigningValues.values.any { !it.isNullOrBlank() }
 
 android {
     namespace = "com.trynite.chefyarnnn"
@@ -22,8 +42,33 @@ android {
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
+    signingConfigs {
+        if (hasReleaseSigningValues) {
+            create("release") {
+                val missingProperties = releaseSigningValues
+                    .filterValues { it.isNullOrBlank() }
+                    .keys
+                check(missingProperties.isEmpty()) {
+                    "Missing release signing values: ${missingProperties.joinToString()}. " +
+                        "Set the ANDROID_KEYSTORE_* environment variables or keystore.properties."
+                }
+
+                storeFile = rootProject.file(releaseSigningValues.getValue("storeFile")!!)
+                storePassword = releaseSigningValues.getValue("storePassword")
+                keyAlias = releaseSigningValues.getValue("keyAlias")
+                keyPassword = releaseSigningValues.getValue("keyPassword")
+                check(storeFile?.isFile == true) {
+                    "Release keystore does not exist at ${storeFile?.path}"
+                }
+            }
+        }
+    }
+
     buildTypes {
         release {
+            if (hasReleaseSigningValues) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             optimization {
                 enable = true
                 packageScope = setOf("androidx.**", "kotlin.**", "kotlinx.**")
