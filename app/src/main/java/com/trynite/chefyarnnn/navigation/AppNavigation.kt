@@ -17,7 +17,7 @@ import androidx.compose.material3.NavigationRail
 import androidx.compose.material3.NavigationRailItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.adaptive.currentWindowAdaptiveInfo
+import androidx.compose.material3.adaptive.currentWindowAdaptiveInfoV2
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.remember
@@ -25,7 +25,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.navigation3.runtime.NavEntry
 import androidx.navigation3.ui.NavDisplay
-import androidx.window.core.layout.WindowWidthSizeClass
+import androidx.window.core.layout.WindowSizeClass
 import com.trynite.chefyarnnn.data.repository.ChefAiRepository
 import com.trynite.chefyarnnn.data.repository.PalengkeRepository
 import com.trynite.chefyarnnn.data.repository.RecipeRepository
@@ -65,7 +65,6 @@ enum class TopLevelDestination(
     PALENGKE(AppRoute.PalengkeChecklist, "Palengke", Icons.Rounded.ShoppingBag)
 }
 
-@Suppress("DEPRECATION")
 @Composable
 fun AppScaffold(
     recipeRepository: RecipeRepository,
@@ -75,8 +74,10 @@ fun AppScaffold(
     val backStack = remember { mutableStateListOf<Any>(AppRoute.Home) }
     val currentRoute = backStack.lastOrNull() ?: AppRoute.Home
 
-    val windowAdaptiveInfo = currentWindowAdaptiveInfo()
-    val isExpanded = windowAdaptiveInfo.windowSizeClass.windowWidthSizeClass == WindowWidthSizeClass.EXPANDED
+    val windowAdaptiveInfo = currentWindowAdaptiveInfoV2()
+    val isExpanded = windowAdaptiveInfo.windowSizeClass.isWidthAtLeastBreakpoint(
+        WindowSizeClass.WIDTH_DP_EXPANDED_LOWER_BOUND
+    )
 
     val isTopLevel = when (currentRoute) {
         is AppRoute.Home,
