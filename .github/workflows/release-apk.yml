@@ -37,10 +37,16 @@ jobs:
           test -n "$ANDROID_KEYSTORE_PASSWORD" || { echo "Missing ANDROID_KEYSTORE_PASSWORD secret"; exit 1; }
           test -n "$ANDROID_KEY_ALIAS" || { echo "Missing ANDROID_KEY_ALIAS secret"; exit 1; }
           if ! keytool -list -keystore app/upload-key.jks \
+            -storepass:env ANDROID_KEYSTORE_PASSWORD >/dev/null 2>&1; then
+            echo "ANDROID_KEYSTORE_PASSWORD does not unlock app/upload-key.jks, or the keystore file is invalid."
+            echo "Recheck the keystore file and its store password."
+            exit 1
+          fi
+          if ! keytool -list -keystore app/upload-key.jks \
             -storepass:env ANDROID_KEYSTORE_PASSWORD \
             -alias "$ANDROID_KEY_ALIAS" >/dev/null 2>&1; then
-            echo "Keystore could not be opened with ANDROID_KEYSTORE_PASSWORD or does not contain ANDROID_KEY_ALIAS."
-            echo "Check that ANDROID_KEYSTORE_BASE64 is the matching keystore and that the password and alias secrets are exact."
+            echo "ANDROID_KEY_ALIAS was not found in app/upload-key.jks."
+            echo "List aliases in your local keystore with: keytool -list -keystore <keystore-file>"
             exit 1
           fi
 
