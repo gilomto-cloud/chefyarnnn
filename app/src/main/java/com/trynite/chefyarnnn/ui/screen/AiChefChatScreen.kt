@@ -75,7 +75,7 @@ fun AiChefChatScreen(
             ChatMessage(
                 id = "welcome_msg",
                 sender = ChatSender.PINOY_CHEF,
-                content = "Kamusta anak/i-tito! Ako si Nanay/Tito Chef. May tanong ka ba sa pagluluto ng Adobo, Sinigang, o paano mag-gisa at i-tantsa ang lasa? Tanong ka lang sa akin!"
+                content = "Kamusta! Ako si Chef Cindy, ang kaibigan mo sa kusina. May tanong ka ba sa pagluluto ng Adobo, Sinigang, o paano mag-gisa at i-tantsa ang lasa? Tanong ka lang!"
             )
         )
     }
@@ -157,7 +157,7 @@ fun AiChefChatScreen(
                 ) {
                     Icon(
                         imageVector = Icons.Rounded.Face,
-                        contentDescription = "Nanay/Tito Chef",
+                        contentDescription = "Chef Cindy",
                         tint = MaterialTheme.colorScheme.onPrimary,
                         modifier = Modifier.size(28.dp)
                     )
@@ -165,7 +165,7 @@ fun AiChefChatScreen(
                 Spacer(modifier = Modifier.width(12.dp))
                 Column {
                     Text(
-                        text = "Nanay / Tito Chef",
+                        text = "Chef Cindy",
                         style = MaterialTheme.typography.titleLarge,
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.onPrimaryContainer
@@ -208,7 +208,7 @@ fun AiChefChatScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Nagiisip si Nanay/Tito Chef...",
+                            text = "Nag-iisip si Chef Cindy...",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -232,7 +232,7 @@ fun AiChefChatScreen(
                 OutlinedTextField(
                     value = inputMessage,
                     onValueChange = { inputMessage = it },
-                    placeholder = { Text("Magtanong kay Nanay/Tito Chef...") },
+                    placeholder = { Text("Magtanong kay Chef Cindy...") },
                     modifier = Modifier.weight(1f),
                     shape = RoundedCornerShape(24.dp),
                     colors = chefTextFieldColors(),

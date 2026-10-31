@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -37,6 +38,7 @@ import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CameraAlt
 import androidx.compose.material.icons.rounded.Check
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.Fastfood
 import androidx.compose.material.icons.rounded.RestaurantMenu
 import androidx.compose.material3.Button
@@ -72,6 +74,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.trynite.chefyarnnn.data.repository.ChefAiRepository
 import com.trynite.chefyarnnn.data.repository.RecipeRepository
 import com.trynite.chefyarnnn.model.Recipe
+import com.trynite.chefyarnnn.model.RecipeCategory
 import com.trynite.chefyarnnn.ui.theme.chefTextFieldColors
 import com.trynite.chefyarnnn.ui.viewmodel.PantryViewModel
 
@@ -93,13 +96,26 @@ fun PantryScannerScreen(
         contract = ActivityResultContracts.GetContent()
     ) { uri: Uri? ->
         uri?.let {
-            val bitmap = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
-                ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, it))
-            } else {
-                @Suppress("DEPRECATION")
-                MediaStore.Images.Media.getBitmap(context.contentResolver, it)
-            }
-            viewModel.setCapturedImage(bitmap)
+            runCatching {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+                    ImageDecoder.decodeBitmap(ImageDecoder.createSource(context.contentResolver, it)) { decoder, info, _ ->
+                        val longestSide = maxOf(info.size.width, info.size.height)
+                        if (longestSide > 1280) {
+                            val scale = 1280f / longestSide
+                            decoder.setTargetSize(
+                                (info.size.width * scale).toInt().coerceAtLeast(1),
+                                (info.size.height * scale).toInt().coerceAtLeast(1)
+                            )
+                        }
+                    }
+                } else {
+                    @Suppress("DEPRECATION")
+                    MediaStore.Images.Media.getBitmap(context.contentResolver, it)
+                }
+            }.onSuccess(viewModel::setCapturedImage)
+                .onFailure {
+                    viewModel.showImageError("Hindi mabuksan ang larawang iyon. Subukan ang ibang larawan.")
+                }
         }
     }
 
@@ -144,7 +160,7 @@ fun PantryScannerScreen(
                     color = MaterialTheme.colorScheme.onBackground
                 )
                 Text(
-                    text = "Pantry-to-Plate AI Recipe Generator",
+                    text = "Ipakita ang laman ng ref o ilista ang sangkap.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -166,7 +182,7 @@ fun PantryScannerScreen(
             ) {
                 // 1. Photo attachment / camera picker trigger
                 Text(
-                    text = "1. Kunan o I-upload ang Larawan ng Ref / Pantry",
+                    text = "1. Magdagdag ng larawan (opsyonal)",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
@@ -233,7 +249,7 @@ fun PantryScannerScreen(
                                 modifier = Modifier.size(18.dp)
                             )
                             Spacer(modifier = Modifier.width(6.dp))
-                            Text("Pumili sa Gallery")
+                                    Text("Pumili sa Gallery")
                         }
                     }
                 }
@@ -242,7 +258,7 @@ fun PantryScannerScreen(
 
                 // 2. Interactive Ingredient Tag Input
                 Text(
-                    text = "2. I-type ang mga Sangkap",
+                    text = "2. Ano ang meron ka?",
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
@@ -252,7 +268,7 @@ fun PantryScannerScreen(
                 OutlinedTextField(
                     value = uiState.tagInputText,
                     onValueChange = viewModel::onTagInputChanged,
-                    placeholder = { Text("I-type ang sangkap (hal. pork belly, toyo, suka...)") },
+                    placeholder = { Text("Hal. baboy, toyo, suka") },
                     modifier = Modifier.fillMaxWidth(),
                     singleLine = true,
                     shape = RoundedCornerShape(14.dp),
@@ -267,11 +283,40 @@ fun PantryScannerScreen(
                     },
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
                     keyboardActions = KeyboardActions(onDone = { viewModel.addTag() }),
+                    supportingText = { Text("Pwede kang maglagay ng maraming sangkap, paghiwalayin ng kuwit.") },
                     colors = chefTextFieldColors()
                 )
 
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(top = 8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "${uiState.ingredientTags.size} sangkap napili",
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    if (uiState.ingredientTags.isNotEmpty()) {
+                        OutlinedButton(
+                            onClick = viewModel::clearIngredients,
+                            contentPadding = PaddingValues(horizontal = 10.dp, vertical = 4.dp)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Rounded.DeleteSweep,
+                                contentDescription = null,
+                                modifier = Modifier.size(16.dp)
+                            )
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("I-clear")
+                        }
+                    }
+                }
+
                 if (uiState.ingredientTags.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(10.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     FlowRow(
                         horizontalArrangement = Arrangement.spacedBy(8.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -316,7 +361,7 @@ fun PantryScannerScreen(
                 ) {
                     uiState.presetIngredients.forEach { preset ->
                         val cleanName = preset.split("(").first().trim()
-                        val isSelected = uiState.ingredientTags.contains(cleanName)
+                        val isSelected = uiState.ingredientTags.any { it.equals(cleanName, ignoreCase = true) }
                         FilterChip(
                             selected = isSelected,
                             onClick = { viewModel.togglePreset(preset) },
@@ -329,9 +374,60 @@ fun PantryScannerScreen(
                     }
                 }
 
+                Spacer(modifier = Modifier.height(20.dp))
+
+                Text(
+                    text = "3. Anong klase ng luto?",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "Optional — pipili si Chef Cindy para sa iyo kung wala kang preference.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(top = 4.dp, bottom = 8.dp)
+                )
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    FilterChip(
+                        selected = uiState.preferredCategory == null,
+                        onClick = { viewModel.setPreferredCategory(null) },
+                        label = { Text("Surprise me") },
+                        colors = FilterChipDefaults.filterChipColors(
+                            selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                            selectedLabelColor = MaterialTheme.colorScheme.onTertiaryContainer
+                        )
+                    )
+                    RecipeCategory.entries.forEach { category ->
+                        FilterChip(
+                            selected = uiState.preferredCategory == category,
+                            onClick = {
+                                viewModel.setPreferredCategory(
+                                    if (uiState.preferredCategory == category) null else category
+                                )
+                            },
+                            label = { Text(category.displayName) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onTertiaryContainer
+                            )
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(24.dp))
 
                 // 4. "Generate Filipino Dishes" action button with smooth loading state
+                Text(
+                    text = "Gagawa si Chef Cindy ng lutong Pinoy mula sa mga sangkap mo.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.padding(bottom = 10.dp)
+                )
                 Button(
                     onClick = { viewModel.generateDishes() },
                     enabled = !uiState.isLoading && (uiState.ingredientTags.isNotEmpty() || uiState.capturedBitmap != null),
@@ -349,7 +445,7 @@ fun PantryScannerScreen(
                             modifier = Modifier.size(24.dp)
                         )
                         Spacer(modifier = Modifier.width(12.dp))
-                        Text("Lumilikha si Nanay/Tito Chef ng Resipe...")
+                        Text("Gumagawa si Chef Cindy ng resipe...")
                     } else {
                         Icon(
                             imageVector = Icons.Rounded.Fastfood,
@@ -357,7 +453,7 @@ fun PantryScannerScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Generate Filipino Dishes",
+                            text = if (uiState.generatedRecipe == null) "Hanapan ako ng lutuin" else "Gumawa ng ibang ideya",
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
@@ -463,6 +559,24 @@ fun PantryScannerScreen(
 
                             Spacer(modifier = Modifier.height(16.dp))
 
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                RecipeInfoPill(
+                                    label = "Prep",
+                                    value = "${generated.prepTimeMinutes} min",
+                                    modifier = Modifier.weight(1f)
+                                )
+                                RecipeInfoPill(
+                                    label = "Luto",
+                                    value = "${generated.cookTimeMinutes} min",
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(18.dp))
+
                             Text(
                                 text = "Mga Sangkap (${generated.ingredients.size}):",
                                 style = MaterialTheme.typography.titleSmall,
@@ -483,6 +597,41 @@ fun PantryScannerScreen(
                                     style = MaterialTheme.typography.labelSmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
+                            }
+
+                            Spacer(modifier = Modifier.height(16.dp))
+                            Text(
+                                text = "Unang hakbang",
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(8.dp))
+                            generated.instructions.take(2).forEachIndexed { index, instruction ->
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                                    verticalAlignment = Alignment.Top,
+                                    modifier = Modifier.padding(bottom = 8.dp)
+                                ) {
+                                    Surface(
+                                        color = MaterialTheme.colorScheme.secondaryContainer,
+                                        shape = RoundedCornerShape(50)
+                                    ) {
+                                        Text(
+                                            text = "${index + 1}",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                        )
+                                    }
+                                    Text(
+                                        text = instruction,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurface,
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                }
                             }
 
                             Spacer(modifier = Modifier.height(16.dp))
@@ -527,10 +676,39 @@ fun PantryScannerScreen(
                                     Text(if (uiState.isRecipeSaved) "Na-save na" else "I-save Resipe")
                                 }
                             }
+
                         }
                     }
                 }
+
             }
+        }
+    }
+}
+
+@Composable
+private fun RecipeInfoPill(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier,
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Column(modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)) {
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Text(
+                text = value,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
         }
     }
 }

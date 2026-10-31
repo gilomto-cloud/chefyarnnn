@@ -2,6 +2,7 @@ package com.trynite.chefyarnnn.ui.screen
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -42,12 +43,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import coil.compose.AsyncImage
+import com.trynite.chefyarnnn.R
 import com.trynite.chefyarnnn.data.repository.RecipeRepository
 import com.trynite.chefyarnnn.model.Recipe
 import com.trynite.chefyarnnn.model.RecipeCategory
@@ -83,11 +86,14 @@ fun HomeScreen(
                 Row(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Icon(
-                        imageVector = Icons.Rounded.Restaurant,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(end = 8.dp)
+                    Image(
+                        painter = painterResource(id = R.drawable.chef_cindy_logo),
+                        contentDescription = "Chef Cindy",
+                        contentScale = ContentScale.Fit,
+                        modifier = Modifier
+                            .width(44.dp)
+                            .height(60.dp)
+                            .padding(end = 8.dp)
                     )
                     Text(
                         text = "ChefYarnnn!",

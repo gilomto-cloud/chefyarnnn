@@ -14,7 +14,9 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.test.UnconfinedTestDispatcher
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runCurrent
 import kotlinx.coroutines.test.runTest
 import kotlinx.coroutines.test.setMain
 import kotlinx.coroutines.withTimeout
@@ -34,6 +36,7 @@ class Task2ViewModelsTest {
     private lateinit var recipeRepository: RecipeRepository
     private lateinit var palengkeRepository: PalengkeRepository
     private lateinit var geminiRepository: ChefAiRepository
+    private var requestedRecipeCategory: RecipeCategory? = null
 
     @Before
     fun setUp() {
@@ -43,8 +46,12 @@ class Task2ViewModelsTest {
         geminiRepository = object : ChefAiRepository {
             override suspend fun generateRecipeFromPantry(
                 pantryItems: List<String>,
-                imageBitmap: Bitmap?
-            ): Recipe = recipeRepository.getRecipeById("recipe_adobo")!!
+                imageBitmap: Bitmap?,
+                preferredCategory: RecipeCategory?
+            ): Recipe {
+                requestedRecipeCategory = preferredCategory
+                return recipeRepository.getRecipeById("recipe_adobo")!!
+            }
 
             override suspend fun chatWithNanayTito(
                 userMessage: String,
@@ -97,26 +104,59 @@ class Task2ViewModelsTest {
     }
 
     @Test
+    fun testRecipeStepTimerCanBePausedAndFinishes() = runTest {
+        val viewModel = RecipeDetailViewModel(recipeRepository, palengkeRepository)
+        viewModel.loadRecipe("recipe_adobo")
+        viewModel.setStepTimer(stepIndex = 0, durationSeconds = 2)
+        viewModel.setStepTimer(stepIndex = 1, durationSeconds = 10)
+
+        viewModel.startStepTimer(0)
+        advanceTimeBy(1_000)
+        runCurrent()
+        assertEquals(1, viewModel.uiState.value.stepTimers[0]?.remainingSeconds)
+        assertEquals(10, viewModel.uiState.value.stepTimers[1]?.remainingSeconds)
+
+        viewModel.pauseStepTimer(0)
+        advanceTimeBy(2_000)
+        runCurrent()
+        assertEquals(1, viewModel.uiState.value.stepTimers[0]?.remainingSeconds)
+
+        viewModel.startStepTimer(0)
+        advanceTimeBy(1_000)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.stepTimers[0]?.isFinished == true)
+        assertEquals("Tapos na ang timer para sa hakbang 1!", viewModel.uiState.value.snackbarMessage)
+    }
+
+    @Test
     fun testPantryViewModelTagManagement() = runTest {
         val viewModel = PantryViewModel(geminiRepository, recipeRepository)
 
-        viewModel.onTagInputChanged("Pork belly")
+        viewModel.onTagInputChanged("Pork belly, toyo, Suka")
         viewModel.addTag()
 
         assertTrue(viewModel.uiState.value.ingredientTags.contains("Pork belly"))
+        assertTrue(viewModel.uiState.value.ingredientTags.contains("toyo"))
+        assertTrue(viewModel.uiState.value.ingredientTags.contains("Suka"))
         assertEquals("", viewModel.uiState.value.tagInputText)
 
         viewModel.togglePreset("Bawang (Garlic)")
         assertTrue(viewModel.uiState.value.ingredientTags.contains("Bawang"))
+        viewModel.onTagInputChanged("bawang")
+        viewModel.addTag()
+        assertEquals(4, viewModel.uiState.value.ingredientTags.size)
 
         viewModel.removeTag("Pork belly")
         assertFalse(viewModel.uiState.value.ingredientTags.contains("Pork belly"))
+        viewModel.clearIngredients()
+        assertTrue(viewModel.uiState.value.ingredientTags.isEmpty())
     }
 
     @Test
     fun testPantryViewModelSavesRecipeReturnedByAiRepository() = runTest {
         val viewModel = PantryViewModel(geminiRepository, recipeRepository)
         viewModel.togglePreset("Baboy (Pork)")
+        viewModel.setPreferredCategory(RecipeCategory.MERIENDA)
 
         viewModel.generateDishes()
 
@@ -128,5 +168,6 @@ class Task2ViewModelsTest {
         assertNotNull(state.generatedRecipe)
         assertTrue(state.isRecipeSaved)
         assertFalse(state.isLoading)
+        assertEquals(RecipeCategory.MERIENDA, requestedRecipeCategory)
     }
 }

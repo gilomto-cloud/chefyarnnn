@@ -61,7 +61,7 @@ enum class TopLevelDestination(
 ) {
     HOME(AppRoute.Home, "Explorer", Icons.Rounded.RestaurantMenu),
     PANTRY(AppRoute.PantryScanner, "Anong Lutuin?", Icons.Rounded.AutoAwesome),
-    CHAT(AppRoute.AiChefChat(), "Nanay/Tito", Icons.AutoMirrored.Rounded.Chat),
+    CHAT(AppRoute.AiChefChat(), "Chef Cindy", Icons.AutoMirrored.Rounded.Chat),
     PALENGKE(AppRoute.PalengkeChecklist, "Palengke", Icons.Rounded.ShoppingBag)
 }
 

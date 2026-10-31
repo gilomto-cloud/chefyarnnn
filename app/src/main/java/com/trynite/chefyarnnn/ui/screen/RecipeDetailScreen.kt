@@ -31,6 +31,11 @@ import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.AddShoppingCart
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Info
+import androidx.compose.material.icons.rounded.Pause
+import androidx.compose.material.icons.rounded.PlayArrow
+import androidx.compose.material.icons.rounded.Refresh
+import androidx.compose.material.icons.rounded.Timer
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
@@ -49,11 +54,14 @@ import androidx.compose.material3.SuggestionChip
 import androidx.compose.material3.SuggestionChipDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
@@ -82,6 +90,7 @@ fun RecipeDetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
+    var timerDialogStep by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(recipeId) {
         viewModel.loadRecipe(recipeId)
@@ -104,6 +113,18 @@ fun RecipeDetailScreen(
             Text("Hindi nahanap ang resipe.")
         }
         return
+    }
+
+    timerDialogStep?.let { stepIndex ->
+        StepTimerSetupDialog(
+            stepNumber = stepIndex + 1,
+            initialDurationSeconds = uiState.stepTimers[stepIndex]?.durationSeconds ?: 60,
+            onDismiss = { timerDialogStep = null },
+            onSetTimer = { durationSeconds ->
+                viewModel.setStepTimer(stepIndex, durationSeconds)
+                timerDialogStep = null
+            }
+        )
     }
 
     Scaffold(
@@ -233,10 +254,10 @@ fun RecipeDetailScreen(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                // Shortcut Button: "Ask Nanay Chef about this recipe"
+                // Shortcut button to ask Chef Cindy about this recipe
                 OutlinedButton(
                     onClick = {
-                        val prompt = "Nanay Chef, may mga tips ka ba, pampalasa secrets, o pwedeng ipalit na sangkap para sa resipeng '${recipe.title}'?"
+                        val prompt = "Chef Cindy, may mga tips ka ba, pampalasa secrets, o pwedeng ipalit na sangkap para sa resipeng '${recipe.title}'?"
                         onAskNanayChef(prompt)
                     },
                     modifier = Modifier
@@ -254,7 +275,7 @@ fun RecipeDetailScreen(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        text = "I-tito / I-tanong kay Nanay Chef ang resipeng ito",
+                        text = "Magtanong kay Chef Cindy tungkol sa resipeng ito",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold
                     )
@@ -496,30 +517,97 @@ fun RecipeDetailScreen(
                             .fillMaxWidth()
                             .padding(bottom = 12.dp)
                     ) {
-                        Row(
+                        Column(
                             modifier = Modifier.padding(16.dp)
                         ) {
-                            Surface(
-                                color = MaterialTheme.colorScheme.primary,
-                                shape = RoundedCornerShape(50),
-                                modifier = Modifier.size(28.dp)
+                            Row(verticalAlignment = Alignment.Top) {
+                                Surface(
+                                    color = MaterialTheme.colorScheme.primary,
+                                    shape = RoundedCornerShape(50),
+                                    modifier = Modifier.size(28.dp)
+                                ) {
+                                    Box(contentAlignment = Alignment.Center) {
+                                        Text(
+                                            text = "${index + 1}",
+                                            style = MaterialTheme.typography.labelMedium,
+                                            fontWeight = FontWeight.Bold,
+                                            color = MaterialTheme.colorScheme.onPrimary
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.width(12.dp))
+                                Text(
+                                    text = step,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    modifier = Modifier.weight(1f)
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(12.dp))
+                            val timer = uiState.stepTimers[index]
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Text(
-                                        text = "${index + 1}",
-                                        style = MaterialTheme.typography.labelMedium,
-                                        fontWeight = FontWeight.Bold,
-                                        color = MaterialTheme.colorScheme.onPrimary
-                                    )
+                                Icon(
+                                    imageVector = Icons.Rounded.Timer,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                                Text(
+                                    text = timer?.let {
+                                        "${formatTimer(it.remainingSeconds)}${if (it.isFinished) " · Tapos na!" else ""}"
+                                    } ?: "Walang timer",
+                                    style = MaterialTheme.typography.titleSmall,
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = if (timer?.isFinished == true) {
+                                        MaterialTheme.colorScheme.tertiary
+                                    } else {
+                                        MaterialTheme.colorScheme.onSurface
+                                    },
+                                    modifier = Modifier.weight(1f)
+                                )
+                                OutlinedButton(onClick = { timerDialogStep = index }) {
+                                    Text(if (timer == null) "Itakda" else "Baguhin")
                                 }
                             }
-                            Spacer(modifier = Modifier.width(12.dp))
-                            Text(
-                                text = step,
-                                style = MaterialTheme.typography.bodyMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                                modifier = Modifier.weight(1f)
-                            )
+                            if (timer != null) {
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    OutlinedButton(
+                                        onClick = {
+                                            if (timer.isRunning) {
+                                                viewModel.pauseStepTimer(index)
+                                            } else {
+                                                viewModel.startStepTimer(index)
+                                            }
+                                        },
+                                        enabled = !timer.isFinished
+                                    ) {
+                                        Icon(
+                                            imageVector = if (timer.isRunning) {
+                                                Icons.Rounded.Pause
+                                            } else {
+                                                Icons.Rounded.PlayArrow
+                                            },
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text(if (timer.isRunning) "I-pause" else "Simulan")
+                                    }
+                                    OutlinedButton(onClick = { viewModel.resetStepTimer(index) }) {
+                                        Icon(
+                                            imageVector = Icons.Rounded.Refresh,
+                                            contentDescription = null,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                        Spacer(modifier = Modifier.width(4.dp))
+                                        Text("I-reset")
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -527,3 +615,92 @@ fun RecipeDetailScreen(
         }
     }
 }
+
+@Composable
+private fun StepTimerSetupDialog(
+    stepNumber: Int,
+    initialDurationSeconds: Int,
+    onDismiss: () -> Unit,
+    onSetTimer: (Int) -> Unit
+) {
+    val initialMinutes = initialDurationSeconds / 60
+    val initialSeconds = initialDurationSeconds % 60
+    var minutes by remember(initialDurationSeconds) { mutableStateOf(initialMinutes) }
+    var seconds by remember(initialDurationSeconds) { mutableStateOf(initialSeconds) }
+    val totalSeconds = minutes * 60 + seconds
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Timer para sa Hakbang $stepNumber") },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = "Pumili ng tagal ng pagluluto.",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
+                ) {
+                    TimerUnitSelector(
+                        value = minutes,
+                        label = "min",
+                        onDecrement = { minutes = (minutes - 1).coerceAtLeast(0) },
+                        onIncrement = { minutes = (minutes + 1).coerceAtMost(180) }
+                    )
+                    Text(
+                        text = ":",
+                        style = MaterialTheme.typography.headlineMedium,
+                        modifier = Modifier.padding(horizontal = 12.dp)
+                    )
+                    TimerUnitSelector(
+                        value = seconds,
+                        label = "seg",
+                        onDecrement = { seconds = (seconds - 10).coerceAtLeast(0) },
+                        onIncrement = { seconds = (seconds + 10).coerceAtMost(59) }
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onSetTimer(totalSeconds) },
+                enabled = totalSeconds > 0
+            ) {
+                Text("I-set ang timer")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Kanselahin")
+            }
+        }
+    )
+}
+
+@Composable
+private fun TimerUnitSelector(
+    value: Int,
+    label: String,
+    onDecrement: () -> Unit,
+    onIncrement: () -> Unit
+) {
+    Column(horizontalAlignment = Alignment.CenterHorizontally) {
+        TextButton(onClick = onIncrement) {
+            Text("+")
+        }
+        Text(
+            text = "%02d".format(value),
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold
+        )
+        Text(label, style = MaterialTheme.typography.labelMedium)
+        TextButton(onClick = onDecrement) {
+            Text("-")
+        }
+    }
+}
+
+private fun formatTimer(totalSeconds: Int): String =
+    "%02d:%02d".format(totalSeconds / 60, totalSeconds % 60)

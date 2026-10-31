@@ -20,7 +20,8 @@ import java.util.UUID
 interface ChefAiRepository {
     suspend fun generateRecipeFromPantry(
         pantryItems: List<String>,
-        imageBitmap: Bitmap? = null
+        imageBitmap: Bitmap? = null,
+        preferredCategory: RecipeCategory? = null
     ): Recipe
 
     suspend fun chatWithNanayTito(
@@ -41,13 +42,17 @@ class FirebaseAiRepository(
 
     override suspend fun generateRecipeFromPantry(
         pantryItems: List<String>,
-        imageBitmap: Bitmap?
+        imageBitmap: Bitmap?,
+        preferredCategory: RecipeCategory?
     ): Recipe = withContext(ioDispatcher) {
         val prompt = buildString {
-            append("You are 'Nanay/Tito Chef', an expert Filipino cook. ")
+            append("You are Chef Cindy, a warm and expert Filipino home cook. ")
             append("Given these pantry items: ${pantryItems.joinToString(", ")}. ")
             if (imageBitmap != null) append("Use the attached image as context. ")
             append("Create a realistic Filipino recipe using mostly the listed ingredients. ")
+            preferredCategory?.let {
+                append("The user specifically wants ${it.displayName}; choose a dish and categorize it as ${it.name}. ")
+            }
             append("Return only valid JSON, with no markdown or comments, using this structure: ")
             append("{\"title\":\"\",\"description\":\"\",\"category\":\"ULAM\",")
             append("\"prepTimeMinutes\":15,\"cookTimeMinutes\":25,\"ingredients\":[")
@@ -64,7 +69,7 @@ class FirebaseAiRepository(
         val response = model.generateContent(request)
         val jsonText = cleanJsonResponse(response.text.orEmpty())
         require(jsonText.isNotBlank()) { "Firebase AI returned an empty recipe response." }
-        parseRecipeJson(jsonText)
+        parseRecipeJson(jsonText, preferredCategory)
     }
 
     override suspend fun chatWithNanayTito(
@@ -72,16 +77,16 @@ class FirebaseAiRepository(
         chatHistory: List<ChatMessage>
     ): String = withContext(ioDispatcher) {
         val persona = """
-            Ikaw si Nanay/Tito Chef, ang warm, maalaga, at maasahan na Filipino home chef.
+            Ikaw si Chef Cindy, isang warm, maalaga, at maaasahang Filipino home chef.
             Magbigay ng maiiwasan, praktikal, at masaya na Taglish na tugon.
         """.trimIndent()
 
         val contextBuilder = StringBuilder("$persona\n\nRecent chat history:\n")
         chatHistory.takeLast(6).forEach { msg ->
-            val senderLabel = if (msg.sender == ChatSender.USER) "User" else "Nanay/Tito Chef"
+            val senderLabel = if (msg.sender == ChatSender.USER) "User" else "Chef Cindy"
             contextBuilder.append("$senderLabel: ${msg.content}\n")
         }
-        contextBuilder.append("User: $userMessage\nNanay/Tito Chef:")
+        contextBuilder.append("User: $userMessage\nChef Cindy:")
         val response = model.generateContent(contextBuilder.toString())
         response.text?.trim()?.takeIf { it.isNotBlank() }
             ?: error("Firebase AI returned an empty chat response.")
@@ -95,7 +100,7 @@ class FirebaseAiRepository(
             .trim()
     }
 
-    private fun parseRecipeJson(jsonStr: String): Recipe {
+    private fun parseRecipeJson(jsonStr: String, preferredCategory: RecipeCategory?): Recipe {
         return try {
             val obj = JSONObject(jsonStr)
             val title = obj.optString("title").trim()
@@ -147,7 +152,7 @@ class FirebaseAiRepository(
                 id = "ai_rec_${UUID.randomUUID().toString().take(8)}",
                 title = title,
                 description = description,
-                category = category,
+                category = preferredCategory ?: category,
                 prepTimeMinutes = prepTime,
                 cookTimeMinutes = cookTime,
                 ingredients = ingredients,
