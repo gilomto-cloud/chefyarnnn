@@ -50,6 +50,24 @@ jobs:
             exit 1
           fi
 
+      - name: Validate private key password
+        env:
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          test -n "$ANDROID_KEY_PASSWORD" || { echo "Missing ANDROID_KEY_PASSWORD secret"; exit 1; }
+          request_file="$(mktemp)"
+          trap 'rm -f "$request_file"' EXIT
+          if ! keytool -certreq -keystore app/upload-key.jks \
+            -storepass:env ANDROID_KEYSTORE_PASSWORD \
+            -keypass:env ANDROID_KEY_PASSWORD \
+            -alias "$ANDROID_KEY_ALIAS" -file "$request_file" >/dev/null 2>&1; then
+            echo "ANDROID_KEY_PASSWORD does not unlock the private key for alias '$ANDROID_KEY_ALIAS'."
+            echo "Recheck the key password for this alias."
+            exit 1
+          fi
+
       - name: Build signed release APK
         env:
           ANDROID_KEYSTORE_FILE: app/upload-key.jks
