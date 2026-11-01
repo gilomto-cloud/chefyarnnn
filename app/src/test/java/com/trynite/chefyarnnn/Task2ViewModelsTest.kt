@@ -4,6 +4,7 @@ import android.graphics.Bitmap
 import com.trynite.chefyarnnn.data.repository.ChefAiRepository
 import com.trynite.chefyarnnn.data.repository.PalengkeRepository
 import com.trynite.chefyarnnn.data.repository.RecipeRepository
+import com.trynite.chefyarnnn.model.MarketCategory
 import com.trynite.chefyarnnn.model.RecipeCategory
 import com.trynite.chefyarnnn.model.ChatMessage
 import com.trynite.chefyarnnn.model.Recipe
@@ -251,5 +252,24 @@ class Task2ViewModelsTest {
         viewModel.setPresetCategory("Protina")
         assertEquals("Protina", viewModel.uiState.value.activePresetCategory)
         assertTrue(viewModel.uiState.value.presetIngredients.contains("Baka (Beef)"))
+    }
+
+    @Test
+    fun testPalengkeItemPricesCanBeAddedAndUpdated() {
+        val repository = PalengkeRepository()
+
+        repository.addItem(
+            name = "Kamatis",
+            amount = "3",
+            unit = "pcs",
+            category = MarketCategory.GULAYAN,
+            price = "25.50"
+        )
+        val addedItem = repository.items.value.last()
+        assertEquals("25.50", addedItem.price)
+
+        repository.updateItemPrice(addedItem.id, "30")
+
+        assertEquals("30", repository.items.value.last().price)
     }
 }

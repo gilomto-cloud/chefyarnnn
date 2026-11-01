@@ -32,7 +32,6 @@ data class Recipe(
     val cookTimeMinutes: Int,
     val ingredients: List<Ingredient>,
     val instructions: List<String>,
-    val imageUrl: String = "",
     val localTermExplanations: Map<String, String> = emptyMap(),
     val isAiGenerated: Boolean = false,
     val isFavorite: Boolean = false

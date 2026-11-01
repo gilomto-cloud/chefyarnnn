@@ -24,6 +24,7 @@ import androidx.compose.material.icons.rounded.ClearAll
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.ShoppingBag
+import androidx.compose.material.icons.rounded.Calculate
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -53,6 +54,8 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
@@ -60,6 +63,9 @@ import com.trynite.chefyarnnn.data.repository.PalengkeRepository
 import com.trynite.chefyarnnn.model.MarketCategory
 import com.trynite.chefyarnnn.model.PalengkeItem
 import com.trynite.chefyarnnn.ui.theme.chefTextFieldColors
+import java.math.BigDecimal
+import java.text.NumberFormat
+import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -68,6 +74,7 @@ fun PalengkeChecklistScreen(
 ) {
     val palengkeItems by palengkeRepository.items.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
+    var itemForPriceEdit by remember { mutableStateOf<PalengkeItem?>(null) }
 
     val groupedItems = remember(palengkeItems) {
         palengkeItems.groupBy { it.category }
@@ -161,25 +168,31 @@ fun PalengkeChecklistScreen(
                 }
             }
 
-            if (palengkeItems.isEmpty()) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(32.dp),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "Walang laman ang palengke list! Pindutin ang '+' para magdagdag ng sangkap.",
-                        style = MaterialTheme.typography.bodyLarge,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+            LazyColumn(
+                contentPadding = PaddingValues(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp),
+                modifier = Modifier.fillMaxSize()
+            ) {
+                item(key = "price_calculator") {
+                    PalengkePriceSummary(items = palengkeItems)
                 }
-            } else {
-                LazyColumn(
-                    contentPadding = PaddingValues(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
-                    modifier = Modifier.fillMaxSize()
-                ) {
+
+                if (palengkeItems.isEmpty()) {
+                    item(key = "empty_list") {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(24.dp),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "Walang laman ang palengke list! Pindutin ang '+' para magdagdag ng sangkap.",
+                                style = MaterialTheme.typography.bodyLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                } else {
                     MarketCategory.entries.forEach { category ->
                         val categoryItems = groupedItems[category] ?: emptyList()
                         if (categoryItems.isNotEmpty()) {
@@ -197,7 +210,8 @@ fun PalengkeChecklistScreen(
                                 PalengkeItemRow(
                                     item = palengkeItem,
                                     onToggle = { palengkeRepository.toggleItemChecked(it.id) },
-                                    onRemove = { palengkeRepository.removeItem(it.id) }
+                                    onRemove = { palengkeRepository.removeItem(it.id) },
+                                    onEditPrice = { itemForPriceEdit = it }
                                 )
                             }
                         }
@@ -210,25 +224,107 @@ fun PalengkeChecklistScreen(
     if (showAddDialog) {
         AddItemDialog(
             onDismiss = { showAddDialog = false },
-            onConfirm = { name, amount, unit, category ->
+            onConfirm = { name, amount, unit, category, price ->
                 palengkeRepository.addItem(
                     name = name,
                     amount = amount,
                     unit = unit,
                     category = category,
+                    price = price,
                     recipeOriginTitle = "Custom Entry"
                 )
                 showAddDialog = false
             }
         )
     }
+
+    itemForPriceEdit?.let { item ->
+        EditItemPriceDialog(
+            item = item,
+            onDismiss = { itemForPriceEdit = null },
+            onConfirm = { price ->
+                palengkeRepository.updateItemPrice(item.id, price)
+                itemForPriceEdit = null
+            }
+        )
+    }
 }
+
+@Composable
+private fun PalengkePriceSummary(items: List<PalengkeItem>) {
+    val total = items.sumItemPrices()
+    val purchasedTotal = items.filter { it.isChecked }.sumItemPrices()
+
+    Card(
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.secondaryContainer)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = Icons.Rounded.Calculate,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.onSecondaryContainer,
+                    modifier = Modifier.size(22.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "Kuwentador ng Gastos",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Kabuuang may presyo", color = MaterialTheme.colorScheme.onSecondaryContainer)
+                Text(
+                    formatPeso(total),
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            }
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Nabili na", color = MaterialTheme.colorScheme.onSecondaryContainer)
+                Text(
+                    formatPeso(purchasedTotal),
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+            }
+            Text(
+                text = "Ilagay ang presyo ng bawat item; awtomatikong kakalkulahin ang kabuuan.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.8f)
+            )
+        }
+    }
+}
+
+private fun List<PalengkeItem>.sumItemPrices(): BigDecimal =
+    fold(BigDecimal.ZERO) { total, item ->
+        total + (item.price.toBigDecimalOrNull()?.takeIf { it >= BigDecimal.ZERO } ?: BigDecimal.ZERO)
+    }
+
+private fun formatPeso(value: BigDecimal): String =
+    NumberFormat.getCurrencyInstance(Locale("en", "PH")).format(value)
 
 @Composable
 fun PalengkeItemRow(
     item: PalengkeItem,
     onToggle: (PalengkeItem) -> Unit,
-    onRemove: (PalengkeItem) -> Unit
+    onRemove: (PalengkeItem) -> Unit,
+    onEditPrice: (PalengkeItem) -> Unit
 ) {
     Card(
         shape = RoundedCornerShape(12.dp),
@@ -279,6 +375,15 @@ fun PalengkeItemRow(
                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.8f)
                     )
                 }
+                TextButton(
+                    onClick = { onEditPrice(item) },
+                    contentPadding = PaddingValues(horizontal = 0.dp, vertical = 2.dp)
+                ) {
+                    Text(
+                        text = item.price.toBigDecimalOrNull()?.let(::formatPeso) ?: "＋ Ilagay ang presyo",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                }
             }
 
             IconButton(onClick = { onRemove(item) }) {
@@ -296,11 +401,12 @@ fun PalengkeItemRow(
 @Composable
 fun AddItemDialog(
     onDismiss: () -> Unit,
-    onConfirm: (name: String, amount: String, unit: String, category: MarketCategory) -> Unit
+    onConfirm: (name: String, amount: String, unit: String, category: MarketCategory, price: String) -> Unit
 ) {
     var name by remember { mutableStateOf("") }
     var amount by remember { mutableStateOf("1") }
     var unit by remember { mutableStateOf("pc") }
+    var price by remember { mutableStateOf("") }
     var selectedCategory by remember { mutableStateOf(MarketCategory.GULAYAN) }
     var expanded by remember { mutableStateOf(false) }
 
@@ -343,6 +449,18 @@ fun AddItemDialog(
                     )
                 }
 
+                OutlinedTextField(
+                    value = price,
+                    onValueChange = { value ->
+                        if (value.matches(Regex("^\\d*(\\.\\d{0,2})?$"))) price = value
+                    },
+                    label = { Text("Presyo (₱, optional)") },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = chefTextFieldColors()
+                )
+
                 ExposedDropdownMenuBox(
                     expanded = expanded,
                     onExpandedChange = { expanded = !expanded }
@@ -380,12 +498,48 @@ fun AddItemDialog(
             Button(
                 onClick = {
                     if (name.isNotBlank()) {
-                        onConfirm(name.trim(), amount.trim(), unit.trim(), selectedCategory)
+                        onConfirm(name.trim(), amount.trim(), unit.trim(), selectedCategory, price)
                     }
                 },
                 enabled = name.isNotBlank()
             ) {
                 Text("Idagdag")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Kanselahin")
+            }
+        }
+    )
+}
+
+@Composable
+private fun EditItemPriceDialog(
+    item: PalengkeItem,
+    onDismiss: () -> Unit,
+    onConfirm: (String) -> Unit
+) {
+    var price by remember(item.id) { mutableStateOf(item.price) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Presyo ng ${item.name}") },
+        text = {
+            OutlinedTextField(
+                value = price,
+                onValueChange = { value ->
+                    if (value.matches(Regex("^\\d*(\\.\\d{0,2})?$"))) price = value
+                },
+                label = { Text("Presyo (₱)") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                colors = chefTextFieldColors()
+            )
+        },
+        confirmButton = {
+            Button(onClick = { onConfirm(price) }) {
+                Text("I-save")
             }
         },
         dismissButton = {

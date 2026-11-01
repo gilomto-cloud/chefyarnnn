@@ -157,7 +157,6 @@ class FirebaseAiRepository(
                 cookTimeMinutes = cookTime,
                 ingredients = ingredients,
                 instructions = instructions,
-                imageUrl = "",
                 localTermExplanations = terms.ifEmpty { mapOf("gisa" to "Sauté garlic and onions until fragrant", "tantsa" to "Adjust seasoning to taste") },
                 isAiGenerated = true
             )

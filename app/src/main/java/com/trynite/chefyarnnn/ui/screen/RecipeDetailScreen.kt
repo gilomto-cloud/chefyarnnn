@@ -64,13 +64,11 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
-import coil.compose.AsyncImage
 import com.trynite.chefyarnnn.data.repository.PalengkeRepository
 import com.trynite.chefyarnnn.data.repository.RecipeRepository
 import com.trynite.chefyarnnn.ui.viewmodel.RecipeDetailViewModel
@@ -136,31 +134,17 @@ fun RecipeDetailScreen(
                 .background(MaterialTheme.colorScheme.background)
                 .verticalScroll(rememberScrollState())
         ) {
-            // Header Image & Navigation Back Button
+            // Navigation back button
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(240.dp)
-                    .background(MaterialTheme.colorScheme.surfaceVariant)
+                    .height(56.dp)
             ) {
-                if (recipe.imageUrl.isNotBlank()) {
-                    AsyncImage(
-                        model = recipe.imageUrl,
-                        contentDescription = recipe.title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize()
-                    )
-                }
-
                 IconButton(
                     onClick = onBackClick,
                     modifier = Modifier
-                        .padding(16.dp)
+                        .padding(start = 4.dp)
                         .align(Alignment.TopStart)
-                        .background(
-                            MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
-                            shape = RoundedCornerShape(50)
-                        )
                 ) {
                     Icon(
                         imageVector = Icons.AutoMirrored.Rounded.ArrowBack,

@@ -57,6 +57,7 @@ class PalengkeRepository {
         amount: String,
         unit: String,
         category: MarketCategory,
+        price: String = "",
         recipeOriginTitle: String? = null
     ) {
         val newItem = PalengkeItem(
@@ -65,6 +66,7 @@ class PalengkeRepository {
             amount = amount,
             unit = unit,
             category = category,
+            price = price,
             isChecked = false,
             recipeOriginTitle = recipeOriginTitle
         )
@@ -96,6 +98,12 @@ class PalengkeRepository {
             } else {
                 item
             }
+        }
+    }
+
+    fun updateItemPrice(itemId: String, price: String) {
+        _items.value = _items.value.map { item ->
+            if (item.id == itemId) item.copy(price = price) else item
         }
     }
 

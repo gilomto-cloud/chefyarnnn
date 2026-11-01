@@ -43,7 +43,6 @@ class RecipeRepository {
                 "Cover and lower heat to palambutin the meat for 35 minutes until tender and sauce reduces.",
                 "Tantsa the taste: adjust saltiness or acid if desired, then serve sizzling hot with extra garlic rice."
             ),
-            imageUrl = "https://images.unsplash.com/photo-1541832676-9b763b0239ab?q=80&w=800",
             localTermExplanations = mapOf(
                 "sangkutsahin" to defaultTerms["sangkutsahin"]!!,
                 "palambutin" to defaultTerms["palambutin"]!!,
@@ -76,7 +75,6 @@ class RecipeRepository {
                 "Add labanos and siling haba. Boil for 3 minutes.",
                 "Turn off heat and throw in fresh kangkong leaves. Cover pot to let steam cook the greens."
             ),
-            imageUrl = "https://images.unsplash.com/photo-1547592166-23ac45744acd?q=80&w=800",
             localTermExplanations = mapOf(
                 "kulo" to defaultTerms["kulo"]!!,
                 "palambutin" to defaultTerms["palambutin"]!!
@@ -108,7 +106,6 @@ class RecipeRepository {
                 "Submerge bihon noodles into boiling broth. Stir continuously as noodles absorb broth and soften.",
                 "Top with reserved vegetables and serve hot with squeezed calamansi."
             ),
-            imageUrl = "https://images.unsplash.com/photo-1569718212165-3a8278d5f624?q=80&w=800",
             localTermExplanations = mapOf(
                 "gisa" to defaultTerms["gisa"]!!,
                 "kulo" to defaultTerms["kulo"]!!
@@ -140,7 +137,6 @@ class RecipeRepository {
                 "Blanch or add vegetables (talong, sitaw, puso ng saging, petchay) until crisp-tender.",
                 "Serve warmly accompanied by salty sautéed bagoong alamang."
             ),
-            imageUrl = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=800",
             localTermExplanations = mapOf(
                 "palambutin" to defaultTerms["palambutin"]!!,
                 "gisa" to defaultTerms["gisa"]!!
@@ -168,7 +164,6 @@ class RecipeRepository {
                 "Fry turon rolls, turning frequently so caramel coats the wrapper evenly until golden and crunchy.",
                 "Drain excess oil on rack and enjoy warm!"
             ),
-            imageUrl = "https://images.unsplash.com/photo-1626777552726-4a6b54c97e46?q=80&w=800",
             localTermExplanations = mapOf(
                 "tantsa" to defaultTerms["tantsa"]!!
             ),
@@ -197,7 +192,6 @@ class RecipeRepository {
                 "Bake at 190°C (375°F) for 20-25 minutes until toothpick comes out clean.",
                 "Brush top with butter, sprinkle freshly grated coconut, and serve warm."
             ),
-            imageUrl = "https://images.unsplash.com/photo-1509440159596-0249088772ff?q=80&w=800",
             localTermExplanations = mapOf(
                 "piga" to defaultTerms["piga"]!!
             ),
@@ -225,7 +219,6 @@ class RecipeRepository {
                 "Deep fry in medium-hot oil until crispy brown and meat is fully cooked.",
                 "Drain oil, slice into bite-sized pieces, and pair with sweet chili dipping sauce."
             ),
-            imageUrl = "https://images.unsplash.com/photo-1544025162-d76694265947?q=80&w=800",
             localTermExplanations = mapOf(
                 "tantsa" to defaultTerms["tantsa"]!!
             ),

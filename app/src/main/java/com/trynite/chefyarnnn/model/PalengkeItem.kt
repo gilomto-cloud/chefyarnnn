@@ -9,6 +9,7 @@ data class PalengkeItem(
     val amount: String,
     val unit: String,
     val category: MarketCategory,
+    val price: String = "",
     val isChecked: Boolean = false,
     val recipeOriginTitle: String? = null
 )
