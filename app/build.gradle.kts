@@ -25,6 +25,13 @@ val releaseSigningValues = mapOf(
         ?: releaseSigningProperties.getProperty("keyPassword"))
 )
 val hasReleaseSigningValues = releaseSigningValues.values.any { !it.isNullOrBlank() }
+val configuredVersionCode = providers.gradleProperty("appVersionCode").orNull
+val appVersionCode = configuredVersionCode?.toIntOrNull()
+    ?: if (configuredVersionCode == null) 1 else error("appVersionCode must be an integer.")
+val appVersionName = providers.gradleProperty("appVersionName").getOrElse("1.0")
+
+check(appVersionCode > 0) { "appVersionCode must be greater than zero." }
+check(appVersionName.isNotBlank()) { "appVersionName must not be blank." }
 
 android {
     namespace = "com.trynite.chefyarnnn"
@@ -36,8 +43,8 @@ android {
         applicationId = "com.trynite.chefyarnnn"
         minSdk = 28
         targetSdk = 37
-        versionCode = 1
-        versionName = "1.0"
+        versionCode = appVersionCode
+        versionName = appVersionName
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
