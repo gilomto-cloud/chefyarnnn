@@ -90,7 +90,7 @@ fun RecipeDetailScreen(
 ) {
     val uiState by viewModel.uiState.collectAsState()
     val snackbarHostState = remember { SnackbarHostState() }
-    var timerDialogStep by remember { mutableStateOf<Int?>(null) }
+    var showTimerDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(recipeId) {
         viewModel.loadRecipe(recipeId)
@@ -115,14 +115,13 @@ fun RecipeDetailScreen(
         return
     }
 
-    timerDialogStep?.let { stepIndex ->
-        StepTimerSetupDialog(
-            stepNumber = stepIndex + 1,
-            initialDurationSeconds = uiState.stepTimers[stepIndex]?.durationSeconds ?: 60,
-            onDismiss = { timerDialogStep = null },
+    if (showTimerDialog) {
+        RecipeTimerSetupDialog(
+            initialDurationSeconds = uiState.recipeTimer?.durationSeconds ?: 60,
+            onDismiss = { showTimerDialog = false },
             onSetTimer = { durationSeconds ->
-                viewModel.setStepTimer(stepIndex, durationSeconds)
-                timerDialogStep = null
+                viewModel.setRecipeTimer(durationSeconds)
+                showTimerDialog = false
             }
         )
     }
@@ -506,6 +505,103 @@ fun RecipeDetailScreen(
                 )
                 Spacer(modifier = Modifier.height(12.dp))
 
+                Card(
+                    shape = RoundedCornerShape(16.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    ),
+                    elevation = CardDefaults.cardElevation(defaultElevation = 2.dp),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(bottom = 16.dp)
+                ) {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(16.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(
+                                imageVector = Icons.Rounded.Timer,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Text(
+                                text = "Timer ng Resipe",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        val timer = uiState.recipeTimer
+                        Text(
+                            text = timer?.let { formatTimer(it.remainingSeconds) } ?: "00:00",
+                            style = MaterialTheme.typography.displaySmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (timer?.isFinished == true) {
+                                MaterialTheme.colorScheme.tertiary
+                            } else {
+                                MaterialTheme.colorScheme.onSurface
+                            }
+                        )
+                        if (timer?.isFinished == true) {
+                            Text(
+                                text = "Tapos na!",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.tertiary
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            if (timer == null) {
+                                Button(onClick = { showTimerDialog = true }) {
+                                    Text("Itakda ang timer")
+                                }
+                            } else {
+                                OutlinedButton(
+                                    onClick = {
+                                        if (timer.isRunning) {
+                                            viewModel.pauseRecipeTimer()
+                                        } else {
+                                            viewModel.startRecipeTimer()
+                                        }
+                                    },
+                                    enabled = !timer.isFinished
+                                ) {
+                                    Icon(
+                                        imageVector = if (timer.isRunning) {
+                                            Icons.Rounded.Pause
+                                        } else {
+                                            Icons.Rounded.PlayArrow
+                                        },
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text(if (timer.isRunning) "I-pause" else "Simulan")
+                                }
+                                OutlinedButton(onClick = { viewModel.resetRecipeTimer() }) {
+                                    Icon(
+                                        imageVector = Icons.Rounded.Refresh,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(4.dp))
+                                    Text("I-reset")
+                                }
+                                OutlinedButton(onClick = { showTimerDialog = true }) {
+                                    Text("Baguhin")
+                                }
+                            }
+                        }
+                    }
+                }
+
                 recipe.instructions.forEachIndexed { index, step ->
                     Card(
                         shape = RoundedCornerShape(16.dp),
@@ -544,70 +640,6 @@ fun RecipeDetailScreen(
                                 )
                             }
 
-                            Spacer(modifier = Modifier.height(12.dp))
-                            val timer = uiState.stepTimers[index]
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Rounded.Timer,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary
-                                )
-                                Text(
-                                    text = timer?.let {
-                                        "${formatTimer(it.remainingSeconds)}${if (it.isFinished) " · Tapos na!" else ""}"
-                                    } ?: "Walang timer",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = if (timer?.isFinished == true) {
-                                        MaterialTheme.colorScheme.tertiary
-                                    } else {
-                                        MaterialTheme.colorScheme.onSurface
-                                    },
-                                    modifier = Modifier.weight(1f)
-                                )
-                                OutlinedButton(onClick = { timerDialogStep = index }) {
-                                    Text(if (timer == null) "Itakda" else "Baguhin")
-                                }
-                            }
-                            if (timer != null) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                                    OutlinedButton(
-                                        onClick = {
-                                            if (timer.isRunning) {
-                                                viewModel.pauseStepTimer(index)
-                                            } else {
-                                                viewModel.startStepTimer(index)
-                                            }
-                                        },
-                                        enabled = !timer.isFinished
-                                    ) {
-                                        Icon(
-                                            imageVector = if (timer.isRunning) {
-                                                Icons.Rounded.Pause
-                                            } else {
-                                                Icons.Rounded.PlayArrow
-                                            },
-                                            contentDescription = null,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text(if (timer.isRunning) "I-pause" else "Simulan")
-                                    }
-                                    OutlinedButton(onClick = { viewModel.resetStepTimer(index) }) {
-                                        Icon(
-                                            imageVector = Icons.Rounded.Refresh,
-                                            contentDescription = null,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(4.dp))
-                                        Text("I-reset")
-                                    }
-                                }
-                            }
                         }
                     }
                 }
@@ -617,8 +649,7 @@ fun RecipeDetailScreen(
 }
 
 @Composable
-private fun StepTimerSetupDialog(
-    stepNumber: Int,
+private fun RecipeTimerSetupDialog(
     initialDurationSeconds: Int,
     onDismiss: () -> Unit,
     onSetTimer: (Int) -> Unit
@@ -631,7 +662,7 @@ private fun StepTimerSetupDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Timer para sa Hakbang $stepNumber") },
+        title = { Text("Timer ng Resipe") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text(

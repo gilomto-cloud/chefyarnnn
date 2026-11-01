@@ -15,7 +15,7 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
-data class StepTimerState(
+data class RecipeTimerState(
     val durationSeconds: Int,
     val remainingSeconds: Int = durationSeconds,
     val isRunning: Boolean = false,
@@ -26,7 +26,7 @@ data class RecipeDetailUiState(
     val recipe: Recipe? = null,
     val checkedIngredientNames: Set<String> = emptySet(),
     val expandedLocalTerms: Set<String> = emptySet(),
-    val stepTimers: Map<Int, StepTimerState> = emptyMap(),
+    val recipeTimer: RecipeTimerState? = null,
     val snackbarMessage: String? = null
 )
 
@@ -37,93 +37,84 @@ class RecipeDetailViewModel(
 
     private val _uiState = MutableStateFlow(RecipeDetailUiState())
     val uiState: StateFlow<RecipeDetailUiState> = _uiState.asStateFlow()
-    private val timerJobs = mutableMapOf<Int, Job>()
+    private var timerJob: Job? = null
 
     fun loadRecipe(recipeId: String) {
-        timerJobs.values.forEach(Job::cancel)
-        timerJobs.clear()
+        if (_uiState.value.recipe?.id == recipeId) return
+
+        timerJob?.cancel()
+        timerJob = null
         val recipe = recipeRepository.getRecipeById(recipeId)
         _uiState.update {
             it.copy(
                 recipe = recipe,
                 checkedIngredientNames = emptySet(),
                 expandedLocalTerms = emptySet(),
-                stepTimers = emptyMap(),
+                recipeTimer = null,
                 snackbarMessage = null
             )
         }
     }
 
-    fun setStepTimer(stepIndex: Int, durationSeconds: Int) {
-        if (stepIndex < 0 || durationSeconds <= 0) return
-        timerJobs.remove(stepIndex)?.cancel()
-        _uiState.update { current ->
-            current.copy(
-                stepTimers = current.stepTimers + (
-                    stepIndex to StepTimerState(durationSeconds = durationSeconds)
-                    )
-            )
+    fun setRecipeTimer(durationSeconds: Int) {
+        if (durationSeconds <= 0) return
+        timerJob?.cancel()
+        timerJob = null
+        _uiState.update {
+            it.copy(recipeTimer = RecipeTimerState(durationSeconds = durationSeconds))
         }
     }
 
-    fun startStepTimer(stepIndex: Int) {
-        val timer = _uiState.value.stepTimers[stepIndex] ?: return
+    fun startRecipeTimer() {
+        val timer = _uiState.value.recipeTimer ?: return
         if (timer.isRunning || timer.remainingSeconds <= 0) return
-        timerJobs.remove(stepIndex)?.cancel()
-        _uiState.update { current ->
-            current.copy(
-                stepTimers = current.stepTimers + (
-                    stepIndex to timer.copy(isRunning = true, isFinished = false)
-                    )
-            )
+        timerJob?.cancel()
+        _uiState.update {
+            it.copy(recipeTimer = timer.copy(isRunning = true, isFinished = false))
         }
-        timerJobs[stepIndex] = viewModelScope.launch {
+        timerJob = viewModelScope.launch {
             while (true) {
                 delay(1_000)
-                val currentTimer = _uiState.value.stepTimers[stepIndex] ?: break
+                val currentTimer = _uiState.value.recipeTimer ?: break
                 if (!currentTimer.isRunning) break
                 val remaining = (currentTimer.remainingSeconds - 1).coerceAtLeast(0)
                 val finished = remaining == 0
-                _uiState.update { current ->
-                    current.copy(
-                        stepTimers = current.stepTimers + (
-                            stepIndex to currentTimer.copy(
-                                remainingSeconds = remaining,
-                                isRunning = !finished,
-                                isFinished = finished
-                            )
-                            ),
-                        snackbarMessage = if (finished) "Tapos na ang timer para sa hakbang ${stepIndex + 1}!" else current.snackbarMessage
+                _uiState.update {
+                    it.copy(
+                        recipeTimer = currentTimer.copy(
+                            remainingSeconds = remaining,
+                            isRunning = !finished,
+                            isFinished = finished
+                        ),
+                        snackbarMessage = if (finished) "Tapos na ang timer para sa resipe!" else it.snackbarMessage
                     )
                 }
                 if (finished) break
             }
-            timerJobs.remove(stepIndex)
+            timerJob = null
         }
     }
 
-    fun pauseStepTimer(stepIndex: Int) {
-        timerJobs.remove(stepIndex)?.cancel()
-        _uiState.update { current ->
-            val timer = current.stepTimers[stepIndex] ?: return@update current
-            current.copy(
-                stepTimers = current.stepTimers + (stepIndex to timer.copy(isRunning = false))
-            )
+    fun pauseRecipeTimer() {
+        timerJob?.cancel()
+        timerJob = null
+        _uiState.update {
+            val timer = it.recipeTimer ?: return@update it
+            it.copy(recipeTimer = timer.copy(isRunning = false))
         }
     }
 
-    fun resetStepTimer(stepIndex: Int) {
-        timerJobs.remove(stepIndex)?.cancel()
-        _uiState.update { current ->
-            val timer = current.stepTimers[stepIndex] ?: return@update current
-            current.copy(
-                stepTimers = current.stepTimers + (
-                    stepIndex to timer.copy(
-                        remainingSeconds = timer.durationSeconds,
-                        isRunning = false,
-                        isFinished = false
-                    )
-                    )
+    fun resetRecipeTimer() {
+        timerJob?.cancel()
+        timerJob = null
+        _uiState.update {
+            val timer = it.recipeTimer ?: return@update it
+            it.copy(
+                recipeTimer = timer.copy(
+                    remainingSeconds = timer.durationSeconds,
+                    isRunning = false,
+                    isFinished = false
+                )
             )
         }
     }

@@ -34,5 +34,6 @@ data class Recipe(
     val instructions: List<String>,
     val imageUrl: String = "",
     val localTermExplanations: Map<String, String> = emptyMap(),
-    val isAiGenerated: Boolean = false
+    val isAiGenerated: Boolean = false,
+    val isFavorite: Boolean = false
 )

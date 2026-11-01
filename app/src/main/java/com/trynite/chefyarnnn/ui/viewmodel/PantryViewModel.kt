@@ -14,27 +14,55 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
+data class PantryComboPack(
+    val name: String,
+    val emoji: String,
+    val items: List<String>
+)
+
 data class PantryUiState(
     val tagInputText: String = "",
     val ingredientTags: List<String> = emptyList(),
-    val presetIngredients: List<String> = listOf(
-        "Bawang (Garlic)",
-        "Sibuyas (Onion)",
-        "Kamatis (Tomato)",
-        "Toyo (Soy Sauce)",
-        "Suka (Vinegar)",
-        "Baboy (Pork)",
-        "Manok (Chicken)",
-        "Itlog (Egg)",
-        "Mantika (Cooking Oil)"
+    val activePresetCategory: String = "Lahat",
+    val presetCategories: Map<String, List<String>> = mapOf(
+        "Lahat" to listOf(
+            "Bawang (Garlic)",
+            "Sibuyas (Onion)",
+            "Kamatis (Tomato)",
+            "Toyo (Soy Sauce)",
+            "Suka (Vinegar)",
+            "Baboy (Pork)",
+            "Manok (Chicken)",
+            "Itlog (Egg)",
+            "Mantika (Cooking Oil)",
+            "Kangkong",
+            "Sitaw",
+            "Talong",
+            "Kalabasa",
+            "Patis",
+            "Gata"
+        ),
+        "Protina" to listOf("Baboy (Pork)", "Manok (Chicken)", "Baka (Beef)", "Isda (Fish)", "Hipon (Shrimp)", "Itlog (Egg)", "Tokwa (Tofu)"),
+        "Gulay" to listOf("Kangkong", "Sitaw", "Talong", "Kalabasa", "Sayote", "Repolyo", "Kamatis", "Sibuyas", "Bawang"),
+        "Pampalasa" to listOf("Toyo (Soy Sauce)", "Suka (Vinegar)", "Patis", "Paminta", "Bagoong", "Gata", "Sinigang Mix")
+    ),
+    val comboPacks: List<PantryComboPack> = listOf(
+        PantryComboPack("Adobo Pack", "🍲", listOf("Baboy", "Manok", "Bawang", "Toyo", "Suka", "Paminta")),
+        PantryComboPack("Sinigang Pack", "🥣", listOf("Baboy", "Kamatis", "Sibuyas", "Kangkong", "Sinigang Mix")),
+        PantryComboPack("Gisado Pack", "🍳", listOf("Bawang", "Sibuyas", "Kamatis", "Mantika", "Itlog"))
     ),
     val preferredCategory: RecipeCategory? = null,
     val capturedBitmap: Bitmap? = null,
     val isLoading: Boolean = false,
     val generatedRecipe: Recipe? = null,
     val isRecipeSaved: Boolean = false,
+    val generatedHistory: List<Recipe> = emptyList(),
     val errorMessage: String? = null
-)
+) {
+    // Legacy support property for presetIngredients
+    val presetIngredients: List<String>
+        get() = presetCategories[activePresetCategory] ?: presetCategories["Lahat"] ?: emptyList()
+}
 
 class PantryViewModel(
     private val geminiRepository: ChefAiRepository,
@@ -69,6 +97,21 @@ class PantryViewModel(
     fun removeTag(tag: String) {
         _uiState.update { current ->
             current.copy(ingredientTags = current.ingredientTags.filter { it != tag })
+        }
+    }
+
+    fun setPresetCategory(category: String) {
+        _uiState.update { it.copy(activePresetCategory = category) }
+    }
+
+    fun applyComboPack(combo: PantryComboPack) {
+        _uiState.update { current ->
+            val knownTags = current.ingredientTags.map(String::lowercase).toMutableSet()
+            val newItems = combo.items.filter { knownTags.add(it.lowercase()) }
+            current.copy(
+                ingredientTags = current.ingredientTags + newItems,
+                errorMessage = null
+            )
         }
     }
 
@@ -122,14 +165,17 @@ class PantryViewModel(
                     imageBitmap = bitmap,
                     preferredCategory = currentState.preferredCategory
                 )
-                recipeRepository.addCustomRecipe(recipe)
                 _uiState.update {
+                    val updatedHistory = listOf(recipe) + it.generatedHistory.filterNot { r -> r.id == recipe.id }
                     it.copy(
                         isLoading = false,
                         generatedRecipe = recipe,
-                        isRecipeSaved = true
+                        isRecipeSaved = false,
+                        generatedHistory = updatedHistory
                     )
                 }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 _uiState.update {
                     it.copy(
@@ -144,6 +190,23 @@ class PantryViewModel(
     fun saveGeneratedRecipe(recipe: Recipe) {
         recipeRepository.addCustomRecipe(recipe)
         _uiState.update { it.copy(isRecipeSaved = true) }
+    }
+
+    fun toggleFavorite(recipeId: String) {
+        recipeRepository.toggleFavorite(recipeId)
+        _uiState.update { current ->
+            val updatedGen = current.generatedRecipe?.let {
+                if (it.id == recipeId) it.copy(isFavorite = !it.isFavorite) else it
+            }
+            val updatedHist = current.generatedHistory.map {
+                if (it.id == recipeId) it.copy(isFavorite = !it.isFavorite) else it
+            }
+            current.copy(generatedRecipe = updatedGen, generatedHistory = updatedHist)
+        }
+    }
+
+    fun selectHistoryRecipe(recipe: Recipe) {
+        _uiState.update { it.copy(generatedRecipe = recipe, isRecipeSaved = true) }
     }
 
     fun clearError() {

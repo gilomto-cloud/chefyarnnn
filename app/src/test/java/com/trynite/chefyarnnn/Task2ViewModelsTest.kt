@@ -51,6 +51,7 @@ class Task2ViewModelsTest {
             ): Recipe {
                 requestedRecipeCategory = preferredCategory
                 return recipeRepository.getRecipeById("recipe_adobo")!!
+                    .copy(id = "ai_test_recipe", isAiGenerated = true)
             }
 
             override suspend fun chatWithNanayTito(
@@ -84,6 +85,36 @@ class Task2ViewModelsTest {
     }
 
     @Test
+    fun testHomeViewModelFavoritesQuickMealsAndSort() = runTest {
+        val viewModel = HomeViewModel(recipeRepository)
+
+        // Toggle favorite for Adobo
+        viewModel.toggleFavorite("recipe_adobo")
+        assertEquals(1, viewModel.uiState.value.favoriteCount)
+
+        // Filter by favorites only
+        viewModel.toggleFavoritesFilter()
+        assertTrue(viewModel.uiState.value.onlyFavorites)
+        assertEquals(1, viewModel.uiState.value.recipes.size)
+        assertEquals("recipe_adobo", viewModel.uiState.value.recipes.first().id)
+
+        // Reset filters
+        viewModel.resetFilters()
+        assertFalse(viewModel.uiState.value.onlyFavorites)
+        assertEquals(recipeRepository.getRecipes().size, viewModel.uiState.value.recipes.size)
+
+        // Filter quick meals (<= 30 mins)
+        viewModel.toggleQuickMealsFilter()
+        assertTrue(viewModel.uiState.value.onlyQuickMeals)
+        assertTrue(viewModel.uiState.value.recipes.all { (it.prepTimeMinutes + it.cookTimeMinutes) <= 30 })
+
+        // Sort by cook time asc
+        viewModel.onSortOrderChange(com.trynite.chefyarnnn.data.repository.SortOrder.TIME_ASC)
+        val times = viewModel.uiState.value.recipes.map { it.prepTimeMinutes + it.cookTimeMinutes }
+        assertEquals(times, times.sorted())
+    }
+
+    @Test
     fun testRecipeDetailViewModelChecklistAndPalengke() = runTest {
         val viewModel = RecipeDetailViewModel(recipeRepository, palengkeRepository)
         val recipeId = "recipe_adobo"
@@ -104,28 +135,56 @@ class Task2ViewModelsTest {
     }
 
     @Test
-    fun testRecipeStepTimerCanBePausedAndFinishes() = runTest {
+    fun testLoadingSameRecipePreservesRunningTimerAndCheckedIngredients() = runTest {
+        val viewModel = RecipeDetailViewModel(recipeRepository, palengkeRepository)
+        val recipeId = "recipe_adobo"
+        viewModel.loadRecipe(recipeId)
+        val ingredientName = viewModel.uiState.value.recipe!!.ingredients.first().name
+        viewModel.toggleIngredientCheck(ingredientName)
+        viewModel.setRecipeTimer(durationSeconds = 10)
+        viewModel.startRecipeTimer()
+        advanceTimeBy(1_000)
+        runCurrent()
+
+        viewModel.loadRecipe(recipeId)
+
+        assertTrue(viewModel.uiState.value.checkedIngredientNames.contains(ingredientName))
+        assertEquals(9, viewModel.uiState.value.recipeTimer?.remainingSeconds)
+        assertTrue(viewModel.uiState.value.recipeTimer?.isRunning == true)
+
+        advanceTimeBy(1_000)
+        runCurrent()
+        assertEquals(8, viewModel.uiState.value.recipeTimer?.remainingSeconds)
+    }
+
+    @Test
+    fun testRecipeTimerCanBePausedResetAndFinishes() = runTest {
         val viewModel = RecipeDetailViewModel(recipeRepository, palengkeRepository)
         viewModel.loadRecipe("recipe_adobo")
-        viewModel.setStepTimer(stepIndex = 0, durationSeconds = 2)
-        viewModel.setStepTimer(stepIndex = 1, durationSeconds = 10)
+        viewModel.setRecipeTimer(durationSeconds = 2)
 
-        viewModel.startStepTimer(0)
+        viewModel.startRecipeTimer()
         advanceTimeBy(1_000)
         runCurrent()
-        assertEquals(1, viewModel.uiState.value.stepTimers[0]?.remainingSeconds)
-        assertEquals(10, viewModel.uiState.value.stepTimers[1]?.remainingSeconds)
+        assertEquals(1, viewModel.uiState.value.recipeTimer?.remainingSeconds)
 
-        viewModel.pauseStepTimer(0)
+        viewModel.pauseRecipeTimer()
         advanceTimeBy(2_000)
         runCurrent()
-        assertEquals(1, viewModel.uiState.value.stepTimers[0]?.remainingSeconds)
+        assertEquals(1, viewModel.uiState.value.recipeTimer?.remainingSeconds)
 
-        viewModel.startStepTimer(0)
+        viewModel.resetRecipeTimer()
+        assertEquals(2, viewModel.uiState.value.recipeTimer?.remainingSeconds)
+
+        viewModel.startRecipeTimer()
         advanceTimeBy(1_000)
         runCurrent()
-        assertTrue(viewModel.uiState.value.stepTimers[0]?.isFinished == true)
-        assertEquals("Tapos na ang timer para sa hakbang 1!", viewModel.uiState.value.snackbarMessage)
+        assertEquals(1, viewModel.uiState.value.recipeTimer?.remainingSeconds)
+        viewModel.startRecipeTimer()
+        advanceTimeBy(1_000)
+        runCurrent()
+        assertTrue(viewModel.uiState.value.recipeTimer?.isFinished == true)
+        assertEquals("Tapos na ang timer para sa resipe!", viewModel.uiState.value.snackbarMessage)
     }
 
     @Test
@@ -153,7 +212,7 @@ class Task2ViewModelsTest {
     }
 
     @Test
-    fun testPantryViewModelSavesRecipeReturnedByAiRepository() = runTest {
+    fun testPantryViewModelSavesGeneratedRecipeOnlyOnRequest() = runTest {
         val viewModel = PantryViewModel(geminiRepository, recipeRepository)
         viewModel.togglePreset("Baboy (Pork)")
         viewModel.setPreferredCategory(RecipeCategory.MERIENDA)
@@ -166,8 +225,31 @@ class Task2ViewModelsTest {
         }
 
         assertNotNull(state.generatedRecipe)
-        assertTrue(state.isRecipeSaved)
+        assertFalse(state.isRecipeSaved)
         assertFalse(state.isLoading)
         assertEquals(RecipeCategory.MERIENDA, requestedRecipeCategory)
+        assertTrue(viewModel.uiState.value.generatedHistory.isNotEmpty())
+        assertEquals(null, recipeRepository.getRecipeById("ai_test_recipe"))
+
+        viewModel.saveGeneratedRecipe(state.generatedRecipe!!)
+
+        assertTrue(viewModel.uiState.value.isRecipeSaved)
+        assertNotNull(recipeRepository.getRecipeById("ai_test_recipe"))
+    }
+
+    @Test
+    fun testPantryViewModelComboPacksAndCategories() = runTest {
+        val viewModel = PantryViewModel(geminiRepository, recipeRepository)
+
+        // Combo pack application
+        val adoboCombo = viewModel.uiState.value.comboPacks.first { it.name.contains("Adobo") }
+        viewModel.applyComboPack(adoboCombo)
+        assertTrue(viewModel.uiState.value.ingredientTags.contains("Baboy"))
+        assertTrue(viewModel.uiState.value.ingredientTags.contains("Toyo"))
+
+        // Category filter selection
+        viewModel.setPresetCategory("Protina")
+        assertEquals("Protina", viewModel.uiState.value.activePresetCategory)
+        assertTrue(viewModel.uiState.value.presetIngredients.contains("Baka (Beef)"))
     }
 }

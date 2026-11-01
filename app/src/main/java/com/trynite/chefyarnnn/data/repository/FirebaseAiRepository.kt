@@ -157,7 +157,7 @@ class FirebaseAiRepository(
                 cookTimeMinutes = cookTime,
                 ingredients = ingredients,
                 instructions = instructions,
-                imageUrl = "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?q=80&w=800",
+                imageUrl = "",
                 localTermExplanations = terms.ifEmpty { mapOf("gisa" to "Sauté garlic and onions until fragrant", "tantsa" to "Adjust seasoning to taste") },
                 isAiGenerated = true
             )

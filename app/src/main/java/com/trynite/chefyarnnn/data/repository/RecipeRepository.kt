@@ -244,15 +244,41 @@ class RecipeRepository {
         return _recipes.value.find { it.id == id }
     }
 
-    fun searchRecipes(query: String, category: RecipeCategory? = null): List<Recipe> {
+    fun toggleFavorite(recipeId: String) {
+        val updatedList = _recipes.value.map { recipe ->
+            if (recipe.id == recipeId) {
+                recipe.copy(isFavorite = !recipe.isFavorite)
+            } else {
+                recipe
+            }
+        }
+        _recipes.value = updatedList
+    }
+
+    fun searchRecipes(
+        query: String,
+        category: RecipeCategory? = null,
+        onlyFavorites: Boolean = false,
+        onlyQuickMeals: Boolean = false,
+        sortOrder: SortOrder = SortOrder.DEFAULT
+    ): List<Recipe> {
         val trimmed = query.trim().lowercase()
-        return _recipes.value.filter { recipe ->
+        val filtered = _recipes.value.filter { recipe ->
             val matchesCategory = category == null || recipe.category == category
             val matchesQuery = trimmed.isEmpty() ||
                     recipe.title.lowercase().contains(trimmed) ||
                     recipe.description.lowercase().contains(trimmed) ||
                     recipe.ingredients.any { it.name.lowercase().contains(trimmed) }
-            matchesCategory && matchesQuery
+            val matchesFavorite = !onlyFavorites || recipe.isFavorite
+            val matchesQuick = !onlyQuickMeals || (recipe.prepTimeMinutes + recipe.cookTimeMinutes <= 30)
+
+            matchesCategory && matchesQuery && matchesFavorite && matchesQuick
+        }
+
+        return when (sortOrder) {
+            SortOrder.DEFAULT -> filtered
+            SortOrder.TIME_ASC -> filtered.sortedBy { it.prepTimeMinutes + it.cookTimeMinutes }
+            SortOrder.TITLE_ASC -> filtered.sortedBy { it.title }
         }
     }
 
@@ -283,4 +309,10 @@ class RecipeRepository {
         }
         _recipes.value = updatedList
     }
+}
+
+enum class SortOrder(val displayName: String) {
+    DEFAULT("Baitang (Default)"),
+    TIME_ASC("Pinakamabilis"),
+    TITLE_ASC("Pangalan (A-Z)")
 }
