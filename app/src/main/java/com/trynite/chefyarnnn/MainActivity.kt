@@ -137,8 +137,12 @@ class MainActivity : ComponentActivity() {
             isSigningIn = true
             signInError = null
             try {
-                val webClientId = getString(R.string.default_web_client_id)
-                check(webClientId.isNotBlank()) {
+                val webClientId = resources.getIdentifier(
+                    "default_web_client_id",
+                    "string",
+                    packageName
+                ).takeIf { it != 0 }?.let(::getString)?.takeIf(String::isNotBlank)
+                check(webClientId != null) {
                     "Google sign-in isn't configured. Add a Web OAuth client in Firebase " +
                         "and download the updated google-services.json."
                 }
