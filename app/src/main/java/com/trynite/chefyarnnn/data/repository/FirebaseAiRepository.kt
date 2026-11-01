@@ -12,6 +12,7 @@ import com.google.firebase.ai.ai
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.ai.type.GenerativeBackend
 import com.google.firebase.ai.type.content
+import com.google.firebase.ai.type.generationConfig
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -38,7 +39,42 @@ class FirebaseAiRepository(
     private val model by lazy {
         Firebase.ai(
             backend = GenerativeBackend.googleAI()
-        ).generativeModel(modelName = "gemini-3.5-flash")
+        ).generativeModel(modelName = FLASH_MODEL)
+    }
+
+    private val chatModel by lazy {
+        Firebase.ai(
+            backend = GenerativeBackend.googleAI()
+        ).generativeModel(
+            modelName = FLASH_MODEL,
+            generationConfig = generationConfig {
+                maxOutputTokens = CHAT_MAX_OUTPUT_TOKENS
+            },
+            systemInstruction = content {
+                text(
+                    "You are Chef Cindy, a practical Filipino cooking assistant. " +
+                        "Reply warmly and concisely in Taglish."
+                )
+            }
+        )
+    }
+
+    private val lightweightChatModel by lazy {
+        Firebase.ai(
+            backend = GenerativeBackend.googleAI()
+        ).generativeModel(
+            modelName = FLASH_LITE_MODEL,
+            generationConfig = generationConfig {
+                maxOutputTokens = LIGHTWEIGHT_MAX_OUTPUT_TOKENS
+            },
+            systemInstruction = content {
+                text(
+                    "You handle short menu-category classification and simple search-style " +
+                        "queries for Filipino cooking. Be concise. Do not claim live prices, " +
+                        "inventory, or search results you cannot verify."
+                )
+            }
+        )
     }
 
     private fun requireGoogleAuthenticated() {
@@ -84,21 +120,54 @@ class FirebaseAiRepository(
         userMessage: String,
         chatHistory: List<ChatMessage>
     ): String = withContext(ioDispatcher) {
-        val persona = """
-            Ikaw si Chef Cindy, isang warm, maalaga, at maaasahang Filipino home chef.
-            Magbigay ng maiiwasan, praktikal, at masaya na Taglish na tugon.
-        """.trimIndent()
-
-        val contextBuilder = StringBuilder("$persona\n\nRecent chat history:\n")
-        chatHistory.takeLast(6).forEach { msg ->
-            val senderLabel = if (msg.sender == ChatSender.USER) "User" else "Chef Cindy"
-            contextBuilder.append("$senderLabel: ${msg.content}\n")
+        val history = chatHistory.toMutableList().apply {
+            if (lastOrNull()?.let {
+                    it.sender == ChatSender.USER && it.content == userMessage
+                } == true
+            ) {
+                removeAt(lastIndex)
+            }
         }
-        contextBuilder.append("User: $userMessage\nChef Cindy:")
+        val prompt = buildString {
+            history.takeLast(CHAT_HISTORY_LIMIT).forEach { message ->
+                val sender = if (message.sender == ChatSender.USER) "User" else "Chef Cindy"
+                append("$sender: ${message.content}\n")
+            }
+            append("User: $userMessage\nChef Cindy:")
+        }
         requireGoogleAuthenticated()
-        val response = model.generateContent(contextBuilder.toString())
+        val selectedModel = if (isLightweightChatTask(userMessage)) {
+            lightweightChatModel
+        } else {
+            chatModel
+        }
+        val response = selectedModel.generateContent(prompt)
         response.text?.trim()?.takeIf { it.isNotBlank() }
             ?: error("Firebase AI returned an empty chat response.")
+    }
+
+    private fun isLightweightChatTask(userMessage: String): Boolean {
+        val normalized = userMessage.trim().lowercase()
+        val menuClassificationPhrases = listOf(
+            "classify this menu",
+            "classify this dish",
+            "categorize this dish",
+            "what menu category",
+            "what category is this",
+            "ulam or merienda",
+            "ulam, merienda",
+            "is this kakanin",
+            "is this pang negosyo"
+        )
+        val searchPrefixes = listOf(
+            "search ",
+            "search for ",
+            "find ",
+            "look up ",
+            "show me "
+        )
+        return menuClassificationPhrases.any(normalized::contains) ||
+            searchPrefixes.any(normalized::startsWith)
     }
 
     private fun cleanJsonResponse(raw: String): String {
@@ -172,5 +241,13 @@ class FirebaseAiRepository(
         } catch (e: Exception) {
             throw IllegalStateException("Firebase AI returned an invalid recipe response.", e)
         }
+    }
+
+    private companion object {
+        const val FLASH_MODEL = "gemini-3.5-flash"
+        const val FLASH_LITE_MODEL = "gemini-3.5-flash-lite"
+        const val CHAT_HISTORY_LIMIT = 4
+        const val CHAT_MAX_OUTPUT_TOKENS = 256
+        const val LIGHTWEIGHT_MAX_OUTPUT_TOKENS = 128
     }
 }
