@@ -253,10 +253,11 @@ class RecipeRepository {
         category: RecipeCategory? = null,
         onlyFavorites: Boolean = false,
         onlyQuickMeals: Boolean = false,
-        sortOrder: SortOrder = SortOrder.DEFAULT
+        sortOrder: SortOrder = SortOrder.DEFAULT,
+        recipes: List<Recipe> = _recipes.value
     ): List<Recipe> {
         val trimmed = query.trim().lowercase()
-        val filtered = _recipes.value.filter { recipe ->
+        val filtered = recipes.filter { recipe ->
             val matchesCategory = category == null || recipe.category == category
             val matchesQuery = trimmed.isEmpty() ||
                     recipe.title.lowercase().contains(trimmed) ||

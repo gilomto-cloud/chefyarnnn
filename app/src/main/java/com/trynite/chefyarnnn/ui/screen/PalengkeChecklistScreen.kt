@@ -3,16 +3,17 @@ package com.trynite.chefyarnnn.ui.screen
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.consumeWindowInsets
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -25,6 +26,7 @@ import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.ShoppingBag
 import androidx.compose.material.icons.rounded.Calculate
+import androidx.compose.material.icons.rounded.AddShoppingCart
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
@@ -74,6 +76,7 @@ fun PalengkeChecklistScreen(
 ) {
     val palengkeItems by palengkeRepository.items.collectAsState()
     var showAddDialog by remember { mutableStateOf(false) }
+    var showClearAllDialog by remember { mutableStateOf(false) }
     var itemForPriceEdit by remember { mutableStateOf<PalengkeItem?>(null) }
 
     val groupedItems = remember(palengkeItems) {
@@ -81,6 +84,7 @@ fun PalengkeChecklistScreen(
     }
 
     Scaffold(
+        contentWindowInsets = WindowInsets(0.dp, 0.dp, 0.dp, 0.dp),
         floatingActionButton = {
             FloatingActionButton(
                 onClick = { showAddDialog = true },
@@ -95,6 +99,7 @@ fun PalengkeChecklistScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
+                .consumeWindowInsets(innerPadding)
                 .background(MaterialTheme.colorScheme.background)
         ) {
             // Header
@@ -123,8 +128,9 @@ fun PalengkeChecklistScreen(
                                 fontWeight = FontWeight.Bold,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer
                             )
+                            val checkedCount = palengkeItems.count { it.isChecked }
                             Text(
-                                text = "Kabuuan: ${palengkeItems.size} | Nabili na: ${palengkeItems.count { it.isChecked }}",
+                                text = "$checkedCount sa ${palengkeItems.size} item nabili",
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
                             )
@@ -139,6 +145,7 @@ fun PalengkeChecklistScreen(
                     ) {
                         OutlinedButton(
                             onClick = { palengkeRepository.clearCheckedItems() },
+                            enabled = palengkeItems.any { it.isChecked },
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(12.dp)
                         ) {
@@ -152,7 +159,8 @@ fun PalengkeChecklistScreen(
                         }
 
                         OutlinedButton(
-                            onClick = { palengkeRepository.clearAllItems() },
+                            onClick = { showClearAllDialog = true },
+                            enabled = palengkeItems.isNotEmpty(),
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(12.dp)
                         ) {
@@ -169,7 +177,7 @@ fun PalengkeChecklistScreen(
             }
 
             LazyColumn(
-                contentPadding = PaddingValues(16.dp),
+                contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 104.dp),
                 verticalArrangement = Arrangement.spacedBy(16.dp),
                 modifier = Modifier.fillMaxSize()
             ) {
@@ -179,17 +187,44 @@ fun PalengkeChecklistScreen(
 
                 if (palengkeItems.isEmpty()) {
                     item(key = "empty_list") {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(24.dp),
-                            contentAlignment = Alignment.Center
+                        Card(
+                            shape = RoundedCornerShape(20.dp),
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.surface
+                            ),
+                            modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text(
-                                text = "Walang laman ang palengke list! Pindutin ang '+' para magdagdag ng sangkap.",
-                                style = MaterialTheme.typography.bodyLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
+                            Column(
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(24.dp)
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Rounded.AddShoppingCart,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(40.dp)
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Text(
+                                    text = "Wala pang laman ang listahan",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold,
+                                    color = MaterialTheme.colorScheme.onSurface
+                                )
+                                Text(
+                                    text = "Magdagdag ng sangkap o ilagay ang mga kailangan sa isang resipe.",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Spacer(modifier = Modifier.height(12.dp))
+                                Button(onClick = { showAddDialog = true }) {
+                                    Icon(Icons.Rounded.Add, contentDescription = null)
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text("Magdagdag ng sangkap")
+                                }
+                            }
                         }
                     }
                 } else {
@@ -234,6 +269,29 @@ fun PalengkeChecklistScreen(
                     recipeOriginTitle = "Custom Entry"
                 )
                 showAddDialog = false
+            }
+        )
+    }
+
+    if (showClearAllDialog) {
+        AlertDialog(
+            onDismissRequest = { showClearAllDialog = false },
+            title = { Text("Linisin ang buong listahan?") },
+            text = { Text("Mawawala ang lahat ng sangkap at impormasyong nailagay mo sa Palengke.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        palengkeRepository.clearAllItems()
+                        showClearAllDialog = false
+                    }
+                ) {
+                    Text("Linisin lahat")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearAllDialog = false }) {
+                    Text("Kanselahin")
+                }
             }
         )
     }

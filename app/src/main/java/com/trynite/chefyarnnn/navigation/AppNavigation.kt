@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Chat
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.RestaurantMenu
 import androidx.compose.material.icons.rounded.ShoppingBag
 import androidx.compose.material3.Icon
@@ -30,6 +31,7 @@ import com.trynite.chefyarnnn.data.repository.ChefAiRepository
 import com.trynite.chefyarnnn.data.repository.PalengkeRepository
 import com.trynite.chefyarnnn.data.repository.RecipeRepository
 import com.trynite.chefyarnnn.ui.screen.AiChefChatScreen
+import com.trynite.chefyarnnn.ui.screen.AccountScreen
 import com.trynite.chefyarnnn.ui.screen.HomeScreen
 import com.trynite.chefyarnnn.ui.screen.PalengkeChecklistScreen
 import com.trynite.chefyarnnn.ui.screen.PantryScannerScreen
@@ -51,6 +53,9 @@ sealed interface AppRoute {
     data object PalengkeChecklist : AppRoute
 
     @Serializable
+    data object Account : AppRoute
+
+    @Serializable
     data class RecipeDetail(val recipeId: String) : AppRoute
 }
 
@@ -59,17 +64,21 @@ enum class TopLevelDestination(
     val label: String,
     val icon: ImageVector
 ) {
-    HOME(AppRoute.Home, "Explorer", Icons.Rounded.RestaurantMenu),
-    PANTRY(AppRoute.PantryScanner, "Anong Lutuin?", Icons.Rounded.AutoAwesome),
-    CHAT(AppRoute.AiChefChat(), "Chef Cindy", Icons.AutoMirrored.Rounded.Chat),
-    PALENGKE(AppRoute.PalengkeChecklist, "Palengke", Icons.Rounded.ShoppingBag)
+    HOME(AppRoute.Home, "Resipe", Icons.Rounded.RestaurantMenu),
+    PANTRY(AppRoute.PantryScanner, "Lutuin", Icons.Rounded.AutoAwesome),
+    CHAT(AppRoute.AiChefChat(), "Chef AI", Icons.AutoMirrored.Rounded.Chat),
+    PALENGKE(AppRoute.PalengkeChecklist, "Palengke", Icons.Rounded.ShoppingBag),
+    ACCOUNT(AppRoute.Account, "Account", Icons.Rounded.AccountCircle)
 }
 
 @Composable
 fun AppScaffold(
     recipeRepository: RecipeRepository,
     geminiRepository: ChefAiRepository,
-    palengkeRepository: PalengkeRepository
+    palengkeRepository: PalengkeRepository,
+    accountName: String,
+    accountEmail: String,
+    onSignOut: () -> Unit
 ) {
     val backStack = remember { mutableStateListOf<Any>(AppRoute.Home) }
     val currentRoute = backStack.lastOrNull() ?: AppRoute.Home
@@ -83,7 +92,8 @@ fun AppScaffold(
         is AppRoute.Home,
         is AppRoute.PantryScanner,
         is AppRoute.AiChefChat,
-        is AppRoute.PalengkeChecklist -> true
+        is AppRoute.PalengkeChecklist,
+        is AppRoute.Account -> true
         else -> false
     }
 
@@ -179,6 +189,13 @@ fun AppScaffold(
                             is AppRoute.PalengkeChecklist -> NavEntry(key) {
                                 PalengkeChecklistScreen(
                                     palengkeRepository = palengkeRepository
+                                )
+                            }
+                            is AppRoute.Account -> NavEntry(key) {
+                                AccountScreen(
+                                    name = accountName,
+                                    email = accountEmail,
+                                    onSignOut = onSignOut
                                 )
                             }
                             is AppRoute.RecipeDetail -> NavEntry(key) {

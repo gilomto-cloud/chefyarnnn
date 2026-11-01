@@ -20,6 +20,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -369,32 +370,25 @@ fun PantryScannerScreen(
                 )
                 Spacer(modifier = Modifier.height(4.dp))
 
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
+                LazyRow(
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    uiState.comboPacks.forEach { combo ->
+                    items(uiState.comboPacks, key = { it.name }) { combo ->
                         Surface(
                             onClick = { viewModel.applyComboPack(combo) },
                             shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
-                            modifier = Modifier.weight(1f)
+                            color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f)
                         ) {
                             Row(
-                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 6.dp),
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 8.dp),
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                Text(
-                                    text = combo.emoji,
-                                    style = MaterialTheme.typography.bodyLarge
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
+                                Text(text = combo.emoji, style = MaterialTheme.typography.bodyLarge)
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text(
                                     text = combo.name,
                                     style = MaterialTheme.typography.labelMedium,
                                     fontWeight = FontWeight.SemiBold,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis,
                                     color = MaterialTheme.colorScheme.onSecondaryContainer
                                 )
                             }
@@ -501,7 +495,11 @@ fun PantryScannerScreen(
 
                 // 4. "Generate Filipino Dishes" action button with smooth loading state
                 Text(
-                    text = "Gagawa si Chef Cindy ng lutong Pinoy mula sa mga sangkap mo.",
+                    text = if (uiState.ingredientTags.isEmpty() && uiState.capturedBitmap == null) {
+                        "Pumili ng sangkap o magdagdag ng larawan para magsimula."
+                    } else {
+                        "Gagawa si Chef Cindy ng lutong Pinoy mula sa mga sangkap mo."
+                    },
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.padding(bottom = 6.dp)
@@ -511,7 +509,7 @@ fun PantryScannerScreen(
                     enabled = !uiState.isLoading && (uiState.ingredientTags.isNotEmpty() || uiState.capturedBitmap != null),
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(48.dp),
+                        .heightIn(min = 48.dp),
                     shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary
@@ -803,7 +801,7 @@ fun PantryScannerScreen(
                                     onClick = { onRecipeGenerated(generated) },
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(48.dp),
+                                        .heightIn(min = 48.dp),
                                     shape = RoundedCornerShape(14.dp),
                                     colors = ButtonDefaults.buttonColors(
                                         containerColor = MaterialTheme.colorScheme.primary
@@ -823,7 +821,7 @@ fun PantryScannerScreen(
                                     enabled = !uiState.isRecipeSaved,
                                     modifier = Modifier
                                         .weight(1f)
-                                        .height(48.dp),
+                                        .heightIn(min = 48.dp),
                                     shape = RoundedCornerShape(14.dp)
                                 ) {
                                     Icon(

@@ -356,6 +356,7 @@ fun HomeScreen(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
+                    .weight(1f)
                     .padding(32.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -403,11 +404,13 @@ fun HomeScreen(
             }
         } else {
             LazyVerticalGrid(
-                columns = GridCells.Adaptive(minSize = 160.dp),
+                columns = GridCells.Adaptive(minSize = 240.dp),
                 contentPadding = PaddingValues(12.dp),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.fillMaxSize()
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .weight(1f)
             ) {
                 items(uiState.recipes, key = { it.id }) { recipe ->
                     RecipeCard(
@@ -490,7 +493,7 @@ fun RecipeCard(
                     text = recipe.title,
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
 
@@ -500,7 +503,7 @@ fun RecipeCard(
                     text = recipe.description,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
+                    maxLines = 2,
                     overflow = TextOverflow.Ellipsis
                 )
 

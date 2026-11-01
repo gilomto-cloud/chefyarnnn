@@ -9,6 +9,7 @@ import com.trynite.chefyarnnn.model.Recipe
 import com.trynite.chefyarnnn.model.RecipeCategory
 import com.google.firebase.Firebase
 import com.google.firebase.ai.ai
+import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.ai.type.GenerativeBackend
 import com.google.firebase.ai.type.content
 import kotlinx.coroutines.CoroutineDispatcher
@@ -40,6 +41,12 @@ class FirebaseAiRepository(
         ).generativeModel(modelName = "gemini-3.5-flash")
     }
 
+    private fun requireGoogleAuthenticated() {
+        check(FirebaseAuth.getInstance().currentUser?.isAnonymous == false) {
+            "Sign in with Google before using Firebase AI."
+        }
+    }
+
     override suspend fun generateRecipeFromPantry(
         pantryItems: List<String>,
         imageBitmap: Bitmap?,
@@ -66,6 +73,7 @@ class FirebaseAiRepository(
             imageBitmap?.let { image(it) }
             text(prompt)
         }
+        requireGoogleAuthenticated()
         val response = model.generateContent(request)
         val jsonText = cleanJsonResponse(response.text.orEmpty())
         require(jsonText.isNotBlank()) { "Firebase AI returned an empty recipe response." }
@@ -87,6 +95,7 @@ class FirebaseAiRepository(
             contextBuilder.append("$senderLabel: ${msg.content}\n")
         }
         contextBuilder.append("User: $userMessage\nChef Cindy:")
+        requireGoogleAuthenticated()
         val response = model.generateContent(contextBuilder.toString())
         response.text?.trim()?.takeIf { it.isNotBlank() }
             ?: error("Firebase AI returned an empty chat response.")

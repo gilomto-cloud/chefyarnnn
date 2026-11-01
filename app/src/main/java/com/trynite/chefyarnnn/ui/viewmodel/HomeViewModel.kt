@@ -33,6 +33,7 @@ class HomeViewModel(
     private val _onlyFavorites = MutableStateFlow(false)
     private val _onlyQuickMeals = MutableStateFlow(false)
     private val _sortOrder = MutableStateFlow(SortOrder.DEFAULT)
+    private val initialRecipes = recipeRepository.getRecipes()
 
     val uiState: StateFlow<HomeUiState> = combine(
         recipeRepository.recipes,
@@ -55,7 +56,8 @@ class HomeViewModel(
             category = category,
             onlyFavorites = favorites,
             onlyQuickMeals = quickMeals,
-            sortOrder = sort
+            sortOrder = sort,
+            recipes = recipes
         )
         HomeUiState(
             searchQuery = query,
@@ -71,9 +73,9 @@ class HomeViewModel(
         scope = viewModelScope,
         started = SharingStarted.Eagerly,
         initialValue = HomeUiState(
-            recipes = recipeRepository.getRecipes(),
-            totalRecipeCount = recipeRepository.getRecipes().size,
-            favoriteCount = recipeRepository.getRecipes().count { it.isFavorite }
+            recipes = initialRecipes,
+            totalRecipeCount = initialRecipes.size,
+            favoriteCount = initialRecipes.count { it.isFavorite }
         )
     )
 

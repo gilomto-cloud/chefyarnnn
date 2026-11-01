@@ -7,6 +7,12 @@ import android.util.Log
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.credentials.CredentialManager
+import androidx.credentials.CustomCredential
+import androidx.credentials.ClearCredentialStateRequest
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialCancellationException
+import androidx.credentials.exceptions.GetCredentialException
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.Text
@@ -25,12 +31,19 @@ import androidx.core.content.FileProvider
 import androidx.core.content.edit
 import androidx.core.net.toUri
 import androidx.lifecycle.lifecycleScope
+import com.google.android.gms.tasks.Tasks
+import com.google.android.libraries.identity.googleid.GetSignInWithGoogleOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
+import com.google.firebase.auth.GoogleAuthProvider
 import com.trynite.chefyarnnn.data.repository.GitHubRelease
 import com.trynite.chefyarnnn.data.repository.FirebaseAiRepository
 import com.trynite.chefyarnnn.data.repository.GitHubReleaseRepository
 import com.trynite.chefyarnnn.data.repository.PalengkeRepository
 import com.trynite.chefyarnnn.data.repository.RecipeRepository
 import com.trynite.chefyarnnn.navigation.AppScaffold
+import com.trynite.chefyarnnn.ui.screen.GoogleSignInScreen
 import com.trynite.chefyarnnn.ui.theme.ChefyarnnnTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.CancellationException
@@ -38,11 +51,30 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
 class MainActivity : ComponentActivity() {
+    private val firebaseAuth = FirebaseAuth.getInstance()
+    private val credentialManager by lazy { CredentialManager.create(this) }
+    private var firebaseUser by mutableStateOf(firebaseAuth.currentUser)
+    private var isSigningIn by mutableStateOf(false)
+    private var signInError by mutableStateOf<String?>(null)
+    private val authStateListener = FirebaseAuth.AuthStateListener { auth ->
+        firebaseUser = auth.currentUser
+    }
+
     private val releaseRepository = GitHubReleaseRepository()
     private var availableRelease by mutableStateOf<GitHubRelease?>(null)
     private var isDownloadingUpdate by mutableStateOf(value = false)
     private var updateError by mutableStateOf<String?>(null)
     private var pendingInstallAfterSettings = false
+
+    override fun onStart() {
+        super.onStart()
+        firebaseAuth.addAuthStateListener(authStateListener)
+    }
+
+    override fun onStop() {
+        firebaseAuth.removeAuthStateListener(authStateListener)
+        super.onStop()
+    }
 
     override fun onResume() {
         super.onResume()
@@ -68,11 +100,22 @@ class MainActivity : ComponentActivity() {
 
         setContent {
             ChefyarnnnTheme {
-                AppScaffold(
-                    recipeRepository = recipeRepository,
-                    geminiRepository = geminiRepository,
-                    palengkeRepository = palengkeRepository,
-                )
+                if (firebaseUser?.isAnonymous == false) {
+                    AppScaffold(
+                        recipeRepository = recipeRepository,
+                        geminiRepository = geminiRepository,
+                        palengkeRepository = palengkeRepository,
+                        accountName = firebaseUser?.displayName.orEmpty(),
+                        accountEmail = firebaseUser?.email.orEmpty(),
+                        onSignOut = ::signOut
+                    )
+                } else {
+                    GoogleSignInScreen(
+                        isSigningIn = isSigningIn,
+                        errorMessage = signInError,
+                        onSignIn = ::signInWithGoogle
+                    )
+                }
             }
             availableRelease?.let { release ->
                 UpdateDialog(
@@ -83,6 +126,92 @@ class MainActivity : ComponentActivity() {
                 ) {
                     downloadAndInstall(release)
                 }
+            }
+        }
+    }
+
+    private fun signInWithGoogle() {
+        if (isSigningIn) return
+
+        lifecycleScope.launch {
+            isSigningIn = true
+            signInError = null
+            try {
+                val webClientId = resources.getIdentifier(
+                    "default_web_client_id",
+                    "string",
+                    packageName
+                ).takeIf { it != 0 }?.let(::getString)
+                    ?.takeIf(String::isNotBlank)
+                    ?: error(
+                        "Google sign-in isn't configured. Add a Web OAuth client in Firebase " +
+                            "and download the updated google-services.json."
+                    )
+                val googleIdOption = GetSignInWithGoogleOption.Builder(webClientId)
+                    .build()
+                val request = GetCredentialRequest.Builder()
+                    .addCredentialOption(googleIdOption)
+                    .build()
+                val result = credentialManager.getCredential(this@MainActivity, request)
+                val credential = result.credential
+                check(
+                    credential is CustomCredential &&
+                        credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+                ) {
+                    "Google did not return a valid sign-in credential."
+                }
+
+                val googleToken = GoogleIdTokenCredential.createFrom(credential.data)
+                val firebaseCredential = GoogleAuthProvider.getCredential(googleToken.idToken, null)
+                withContext(Dispatchers.IO) {
+                    val currentUser = firebaseAuth.currentUser
+                    if (currentUser?.isAnonymous == true) {
+                        try {
+                            Tasks.await(currentUser.linkWithCredential(firebaseCredential))
+                        } catch (_: FirebaseAuthUserCollisionException) {
+                            Tasks.await(firebaseAuth.signInWithCredential(firebaseCredential))
+                        }
+                    } else {
+                        Tasks.await(firebaseAuth.signInWithCredential(firebaseCredential))
+                    }
+                }
+                firebaseUser = firebaseAuth.currentUser
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: GetCredentialCancellationException) {
+                val detail = exception.message.orEmpty()
+                signInError = if (detail.contains("reauth", ignoreCase = true)) {
+                    "Google couldn't reauthenticate this account. In Firebase Console, enable " +
+                        "Google sign-in and add this app's SHA-1/SHA-256 signing fingerprints, " +
+                        "then download the updated google-services.json."
+                } else {
+                    "Google sign-in was cancelled. Tap Continue with Google to try again."
+                }
+                Log.w(TAG, "Google Credential Manager sign-in was cancelled: $detail", exception)
+            } catch (exception: GetCredentialException) {
+                signInError = exception.message?.let { "Google sign-in failed: $it" }
+                    ?: "Google sign-in failed. Check Firebase's Google provider and app configuration."
+                Log.w(TAG, "Google Credential Manager sign-in failed.", exception)
+            } catch (exception: Exception) {
+                signInError = exception.localizedMessage
+                    ?: "Google sign-in failed. Check your connection and try again."
+                Log.e(TAG, "Firebase Google sign-in failed.", exception)
+            } finally {
+                isSigningIn = false
+            }
+        }
+    }
+
+    private fun signOut() {
+        firebaseAuth.signOut()
+        firebaseUser = null
+        lifecycleScope.launch {
+            try {
+                credentialManager.clearCredentialState(ClearCredentialStateRequest())
+            } catch (exception: CancellationException) {
+                throw exception
+            } catch (exception: Exception) {
+                Log.w(TAG, "Unable to clear Credential Manager state after sign-out.", exception)
             }
         }
     }
@@ -210,7 +339,10 @@ fun AppPreview() {
         AppScaffold(
             recipeRepository = recipeRepository,
             geminiRepository = geminiRepository,
-            palengkeRepository = palengkeRepository
+            palengkeRepository = palengkeRepository,
+            accountName = "",
+            accountEmail = "",
+            onSignOut = {}
         )
     }
 }
