@@ -33,6 +33,12 @@ jobs:
           test -n "$GOOGLE_SERVICES_JSON_BASE64" || { echo "Missing GOOGLE_SERVICES_JSON_BASE64 secret"; exit 1; }
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > app/upload-key.jks
           printf '%s' "$GOOGLE_SERVICES_JSON_BASE64" | base64 --decode > app/google-services.json
+          if ! jq -e '[.client[].oauth_client[]? | select(.client_type == 3)] | length > 0' \
+            app/google-services.json >/dev/null; then
+            echo "GOOGLE_SERVICES_JSON_BASE64 must include a Web OAuth client (client_type 3)."
+            echo "Download the updated google-services.json from Firebase and update the GitHub secret."
+            exit 1
+          fi
 
       - name: Validate keystore password and alias
         env:
