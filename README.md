@@ -6,4 +6,4 @@
 - **Anong Lutuin?** — scan pantry items for cooking ideas.
 - **Chef Cindy** — chat with an AI chef for cooking help and inspiration.
 - **Palengke** — manage a shopping checklist and track item prices and totals.
-- **App updates** — receive in-app alerts when a new release is available through Firebase App Distribution.
+- **App updates** — check public GitHub Releases for new versions, then download and install updates with your approval.

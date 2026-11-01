@@ -24,11 +24,6 @@ jobs:
           distribution: temurin
           java-version: "17"
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v5
-        with:
-          node-version: "24"
-
       - name: Restore signing files
         env:
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
@@ -100,22 +95,6 @@ jobs:
             "-PappVersionName=$version_name" \
             "-PappVersionCode=$GITHUB_RUN_NUMBER" \
             --no-daemon
-
-      - name: Distribute APK with Firebase App Distribution
-        env:
-          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
-        run: |
-          test -n "$FIREBASE_TOKEN" || {
-            echo "::error::Missing FIREBASE_TOKEN GitHub Actions secret. Add a Firebase CLI CI token in repository Settings > Secrets and variables > Actions."
-            exit 1
-          }
-          npx -y firebase-tools@latest appdistribution:distribute \
-            app/build/outputs/apk/release/*.apk \
-            --app 1:546857711092:android:9d10a97d7bc5f6d547f5a1 \
-            --project chefyarnnn \
-            --testers gilomto@gmail.com \
-            --release-notes "Build ${GITHUB_REF_NAME}" \
-            --token "$FIREBASE_TOKEN"
 
       - name: Publish APK to GitHub Releases
         if: startsWith(github.ref, 'refs/tags/')
