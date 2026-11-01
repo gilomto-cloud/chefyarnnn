@@ -123,6 +123,8 @@ dependencies {
     implementation(libs.androidx.room.ktx)
     implementation(libs.androidx.room.runtime)
     implementation(libs.converter.moshi)
+    implementation(libs.firebase.appdistribution.api)
+    releaseImplementation(libs.firebase.appdistribution)
 
     implementation(libs.kotlinx.coroutines.android)
     implementation(libs.kotlinx.coroutines.core)
