@@ -179,7 +179,6 @@ fun AppScaffold(
                             is AppRoute.AiChefChat -> NavEntry(key) {
                                 AiChefChatScreen(
                                     geminiRepository = geminiRepository,
-                                    recipeRepository = recipeRepository,
                                     onViewRecipe = { recipeId ->
                                         backStack.add(AppRoute.RecipeDetail(recipeId))
                                     },

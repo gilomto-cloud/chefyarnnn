@@ -1,5 +1,6 @@
 package com.trynite.chefyarnnn.ui.screen
 
+import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -33,7 +34,6 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -50,25 +50,24 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.trynite.chefyarnnn.data.repository.ChefAiRepository
-import com.trynite.chefyarnnn.data.repository.RecipeRepository
 import com.trynite.chefyarnnn.model.ChatMessage
 import com.trynite.chefyarnnn.model.ChatSender
 import com.trynite.chefyarnnn.ui.theme.chefTextFieldColors
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
 import java.util.UUID
 
 @Composable
 fun AiChefChatScreen(
     geminiRepository: ChefAiRepository,
-    recipeRepository: RecipeRepository,
     onViewRecipe: (String) -> Unit,
-    initialPrompt: String = ""
+    initialPrompt: String = "",
 ) {
     val coroutineScope = rememberCoroutineScope()
     val listState = rememberLazyListState()
 
     var inputMessage by remember { mutableStateOf("") }
-    var isThinking by remember { mutableStateOf(false) }
+    var isThinking by remember { mutableStateOf(value = false) }
 
     val messages = remember {
         mutableStateListOf(
@@ -111,8 +110,10 @@ fun AiChefChatScreen(
                     content = reply
                 )
                 messages.add(chefMsg)
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
-                e.printStackTrace()
+                Log.e("AiChefChatScreen", "Failed to generate chat response.", e)
                 messages.add(
                     ChatMessage(
                         id = UUID.randomUUID().toString(),
@@ -188,9 +189,9 @@ fun AiChefChatScreen(
                 .weight(1f)
                 .fillMaxWidth()
         ) {
-            items(messages, key = { it.id }) { msg ->
+            items(messages, key = { it.id }) { message ->
                 ChatMessageItem(
-                    message = msg,
+                    message = message,
                     onViewRecipe = onViewRecipe
                 )
             }
