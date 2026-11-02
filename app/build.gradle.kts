@@ -29,6 +29,7 @@ val configuredVersionCode = providers.gradleProperty("appVersionCode").orNull
 val appVersionCode = configuredVersionCode?.toIntOrNull()
     ?: if (configuredVersionCode == null) 1 else error("appVersionCode must be an integer.")
 val appVersionName = providers.gradleProperty("appVersionName").getOrElse("1.0")
+val backupAiWorkerUrl = providers.gradleProperty("backupAiWorkerUrl").orNull.orEmpty()
 
 check(appVersionCode > 0) { "appVersionCode must be greater than zero." }
 check(appVersionName.isNotBlank()) { "appVersionName must not be blank." }
@@ -45,6 +46,7 @@ android {
         targetSdk = 37
         versionCode = appVersionCode
         versionName = appVersionName
+        buildConfigField("String", "BACKUP_AI_WORKER_URL", "\"$backupAiWorkerUrl\"")
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }

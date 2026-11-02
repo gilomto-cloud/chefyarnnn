@@ -1,6 +1,7 @@
 package com.trynite.chefyarnnn.data.repository
 
 import android.graphics.Bitmap
+import android.util.Base64
 import com.trynite.chefyarnnn.model.ChatMessage
 import com.trynite.chefyarnnn.model.ChatSender
 import com.trynite.chefyarnnn.model.Ingredient
@@ -11,12 +12,22 @@ import com.google.firebase.Firebase
 import com.google.firebase.ai.ai
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.ai.type.GenerativeBackend
+import com.google.firebase.ai.type.QuotaExceededException
 import com.google.firebase.ai.type.content
 import com.google.firebase.ai.type.generationConfig
+import com.google.android.gms.tasks.Tasks
+import com.trynite.chefyarnnn.BuildConfig
 import kotlinx.coroutines.CoroutineDispatcher
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
 import org.json.JSONObject
+import java.io.ByteArrayOutputStream
+import java.io.IOException
+import java.util.concurrent.TimeUnit
 import java.util.UUID
 
 interface ChefAiRepository {
@@ -35,6 +46,9 @@ interface ChefAiRepository {
 class FirebaseAiRepository(
     private val ioDispatcher: CoroutineDispatcher = Dispatchers.IO
 ) : ChefAiRepository {
+    private val backupHttpClient = OkHttpClient.Builder()
+        .callTimeout(BACKUP_REQUEST_TIMEOUT_SECONDS, TimeUnit.SECONDS)
+        .build()
 
     private val model by lazy {
         Firebase.ai(
@@ -110,7 +124,18 @@ class FirebaseAiRepository(
             text(prompt)
         }
         requireGoogleAuthenticated()
-        val response = model.generateContent(request)
+        val response = try {
+            model.generateContent(request)
+        } catch (_: QuotaExceededException) {
+            val backupText = callBackupAi(
+                operation = BACKUP_OPERATION_RECIPE,
+                prompt = prompt,
+                imageBitmap = imageBitmap
+            )
+            val jsonText = cleanJsonResponse(backupText)
+            require(jsonText.isNotBlank()) { "Backup AI returned an empty recipe response." }
+            return@withContext parseRecipeJson(jsonText, preferredCategory)
+        }
         val jsonText = cleanJsonResponse(response.text.orEmpty())
         require(jsonText.isNotBlank()) { "Firebase AI returned an empty recipe response." }
         parseRecipeJson(jsonText, preferredCategory)
@@ -141,9 +166,88 @@ class FirebaseAiRepository(
         } else {
             chatModel
         }
-        val response = selectedModel.generateContent(prompt)
-        response.text?.trim()?.takeIf { it.isNotBlank() }
-            ?: error("Firebase AI returned an empty chat response.")
+        try {
+            val response = selectedModel.generateContent(prompt)
+            response.text?.trim()?.takeIf { it.isNotBlank() }
+                ?: error("Firebase AI returned an empty chat response.")
+        } catch (_: QuotaExceededException) {
+            callBackupAi(
+                operation = BACKUP_OPERATION_CHAT,
+                prompt = prompt
+            )
+        }
+    }
+
+    private suspend fun callBackupAi(
+        operation: String,
+        prompt: String,
+        imageBitmap: Bitmap? = null
+    ): String = withContext(ioDispatcher) {
+        check(BuildConfig.BACKUP_AI_WORKER_URL.isNotBlank()) {
+            "The backup AI endpoint is not configured. Set the backupAiWorkerUrl Gradle property."
+        }
+        val firebaseUser = FirebaseAuth.getInstance().currentUser
+        check(firebaseUser?.isAnonymous == false) {
+            "Sign in with Google before using the backup AI."
+        }
+        val idToken = Tasks.await(firebaseUser.getIdToken(false)).token
+            ?: error("Could not verify your account for backup AI.")
+        val requestData = JSONObject()
+            .put("operation", operation)
+            .put("prompt", prompt)
+        imageBitmap?.let { bitmap ->
+            val imageBytes = bitmapToJpeg(bitmap)
+            check(imageBytes.size <= MAX_BACKUP_IMAGE_BYTES) {
+                "The image is too large to send to the backup AI. Try a smaller image."
+            }
+            requestData.put("imageBase64", Base64.encodeToString(imageBytes, Base64.NO_WRAP))
+                .put("imageMimeType", JPEG_MIME_TYPE)
+        }
+
+        val request = Request.Builder()
+            .url(BuildConfig.BACKUP_AI_WORKER_URL)
+            .header("Authorization", "Bearer $idToken")
+            .post(requestData.toString().toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        backupHttpClient.newCall(request).execute().use { response ->
+            val responseBody = response.body.string()
+            if (!response.isSuccessful) {
+                val message = runCatching { JSONObject(responseBody).optString("error") }
+                    .getOrNull()
+                    ?.takeIf(String::isNotBlank)
+                throw IOException(message ?: "Backup AI request failed (HTTP ${response.code}).")
+            }
+            val data = JSONObject(responseBody)
+            data.optString("text").trim().takeIf(String::isNotBlank)
+            ?: error("Backup AI returned an empty response.")
+        }
+    }
+
+    private fun bitmapToJpeg(bitmap: Bitmap): ByteArray {
+        val scale = minOf(
+            1f,
+            MAX_BACKUP_IMAGE_DIMENSION.toFloat() / maxOf(bitmap.width, bitmap.height)
+        )
+        val resizedBitmap = if (scale < 1f) {
+            Bitmap.createScaledBitmap(
+                bitmap,
+                (bitmap.width * scale).toInt().coerceAtLeast(1),
+                (bitmap.height * scale).toInt().coerceAtLeast(1),
+                true
+            )
+        } else {
+            bitmap
+        }
+        return try {
+            ByteArrayOutputStream().use { output ->
+                check(resizedBitmap.compress(Bitmap.CompressFormat.JPEG, JPEG_QUALITY, output)) {
+                    "Could not prepare the image for backup AI."
+                }
+                output.toByteArray()
+            }
+        } finally {
+            if (resizedBitmap !== bitmap) resizedBitmap.recycle()
+        }
     }
 
     private fun isLightweightChatTask(userMessage: String): Boolean {
@@ -249,5 +353,13 @@ class FirebaseAiRepository(
         const val CHAT_HISTORY_LIMIT = 4
         const val CHAT_MAX_OUTPUT_TOKENS = 256
         const val LIGHTWEIGHT_MAX_OUTPUT_TOKENS = 128
+        const val BACKUP_OPERATION_CHAT = "chat"
+        const val BACKUP_OPERATION_RECIPE = "recipe"
+        const val MAX_BACKUP_IMAGE_DIMENSION = 1024
+        const val MAX_BACKUP_IMAGE_BYTES = 3 * 1024 * 1024
+        const val JPEG_QUALITY = 80
+        const val JPEG_MIME_TYPE = "image/jpeg"
+        const val BACKUP_REQUEST_TIMEOUT_SECONDS = 60L
+        val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
     }
 }
