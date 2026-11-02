@@ -375,7 +375,8 @@ private fun List<PalengkeItem>.sumItemPrices(): BigDecimal =
     }
 
 private fun formatPeso(value: BigDecimal): String =
-    NumberFormat.getCurrencyInstance(Locale("en", "PH")).format(value)
+    NumberFormat.getCurrencyInstance(Locale.Builder().setLanguage("en").setRegion("PH").build())
+        .format(value)
 
 @Composable
 fun PalengkeItemRow(

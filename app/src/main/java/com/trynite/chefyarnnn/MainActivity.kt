@@ -96,9 +96,9 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        val recipeRepository = RecipeRepository()
+        val recipeRepository = RecipeRepository(applicationContext)
         val geminiRepository = FirebaseAiRepository()
-        val palengkeRepository = PalengkeRepository()
+        val palengkeRepository = PalengkeRepository(applicationContext)
 
         setContent {
             ChefyarnnnTheme {

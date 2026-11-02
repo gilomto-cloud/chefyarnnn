@@ -1,14 +1,22 @@
 package com.trynite.chefyarnnn.data.repository
 
+import android.content.Context
+import android.util.Log
 import com.trynite.chefyarnnn.model.Ingredient
 import com.trynite.chefyarnnn.model.MarketCategory
 import com.trynite.chefyarnnn.model.Recipe
 import com.trynite.chefyarnnn.model.RecipeCategory
+import kotlinx.serialization.SerializationException
+import kotlinx.serialization.json.Json
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 
-class RecipeRepository {
+class RecipeRepository(context: Context? = null) {
+    private val preferences = context?.getSharedPreferences(
+        USER_DATA_PREFERENCES,
+        Context.MODE_PRIVATE
+    )
 
     private val defaultTerms = mapOf(
         "gisa" to "Saute garlic, onions, and tomatoes in hot oil until aromatic and translucent.",
@@ -226,7 +234,7 @@ class RecipeRepository {
         )
     )
 
-    private val _recipes = MutableStateFlow<List<Recipe>>(classicRecipes)
+    private val _recipes = MutableStateFlow(loadRecipes())
     val recipes: StateFlow<List<Recipe>> = _recipes.asStateFlow()
 
     fun getRecipes(): List<Recipe> {
@@ -246,6 +254,7 @@ class RecipeRepository {
             }
         }
         _recipes.value = updatedList
+        saveFavorites(updatedList)
     }
 
     fun searchRecipes(
@@ -289,6 +298,7 @@ class RecipeRepository {
             updatedList.add(0, recipe)
         }
         _recipes.value = updatedList
+        saveCustomRecipes(updatedList)
     }
 
     fun addRecipes(newRecipes: List<Recipe>) {
@@ -302,6 +312,49 @@ class RecipeRepository {
             }
         }
         _recipes.value = updatedList
+        saveCustomRecipes(updatedList)
+    }
+
+    private fun loadRecipes(): List<Recipe> {
+        val favoriteIds = readStoredData(FAVORITES_KEY, emptyList<String>())
+            .toSet()
+        val savedCustomRecipes = readStoredData(CUSTOM_RECIPES_KEY, emptyList<Recipe>())
+        val defaults = classicRecipes.map { recipe ->
+            recipe.copy(isFavorite = recipe.id in favoriteIds)
+        }
+        return defaults + savedCustomRecipes.filter { saved ->
+            defaults.none { it.id == saved.id }
+        }
+    }
+
+    private inline fun <reified T> readStoredData(key: String, defaultValue: T): T {
+        val storedValue = preferences?.getString(key, null) ?: return defaultValue
+        return try {
+            Json.decodeFromString<T>(storedValue)
+        } catch (exception: SerializationException) {
+            Log.e(TAG, "Could not restore saved recipe data for key '$key'.", exception)
+            defaultValue
+        }
+    }
+
+    private fun saveFavorites(recipes: List<Recipe>) {
+        val favoriteIds = recipes.filter(Recipe::isFavorite).map(Recipe::id)
+        preferences?.edit()?.putString(FAVORITES_KEY, Json.encodeToString(favoriteIds))?.apply()
+    }
+
+    private fun saveCustomRecipes(recipes: List<Recipe>) {
+        val customRecipes = recipes.filter { recipe ->
+            classicRecipes.none { it.id == recipe.id }
+        }
+        preferences?.edit()?.putString(CUSTOM_RECIPES_KEY, Json.encodeToString(customRecipes))?.apply()
+        saveFavorites(recipes)
+    }
+
+    private companion object {
+        const val TAG = "RecipeRepository"
+        const val USER_DATA_PREFERENCES = "chefyarnnn_user_data"
+        const val FAVORITES_KEY = "favorite_recipe_ids"
+        const val CUSTOM_RECIPES_KEY = "custom_recipes"
     }
 }
 
