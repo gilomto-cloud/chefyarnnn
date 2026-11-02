@@ -19,3 +19,5 @@ local.properties
 /app/*.keystore
 /functions/node_modules/
 /functions/.wrangler/
+/.directory
+/.megaignore
