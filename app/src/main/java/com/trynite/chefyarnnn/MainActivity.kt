@@ -62,6 +62,8 @@ class MainActivity : ComponentActivity() {
 
     private val releaseRepository = GitHubReleaseRepository()
     private var availableRelease by mutableStateOf<GitHubRelease?>(null)
+    private var isCheckingForUpdate by mutableStateOf(false)
+    private var updateCheckMessage by mutableStateOf<String?>(null)
     private var isDownloadingUpdate by mutableStateOf(value = false)
     private var updateError by mutableStateOf<String?>(null)
     private var pendingInstallAfterSettings = false
@@ -107,7 +109,10 @@ class MainActivity : ComponentActivity() {
                         palengkeRepository = palengkeRepository,
                         accountName = firebaseUser?.displayName.orEmpty(),
                         accountEmail = firebaseUser?.email.orEmpty(),
-                        onSignOut = ::signOut
+                        isCheckingForUpdates = isCheckingForUpdate,
+                        updateCheckMessage = updateCheckMessage,
+                        onCheckForUpdates = { checkForUpdate(manual = true) },
+                        onSignOut = ::signOut,
                     )
                 } else {
                     GoogleSignInScreen(
@@ -215,25 +220,43 @@ class MainActivity : ComponentActivity() {
         }
     }
 
-    private fun checkForUpdate() {
-        if (BuildConfig.DEBUG) return
-
+    private fun checkForUpdate(manual: Boolean = false) {
+        if (!manual && BuildConfig.DEBUG) return
+        if (isCheckingForUpdate) return
         val preferences = getSharedPreferences(PREFERENCES_NAME, MODE_PRIVATE)
         val now = System.currentTimeMillis()
         val lastCheck = preferences.getLong(LAST_CHECK_KEY, 0L)
-        if ((now - lastCheck) < CHECK_INTERVAL_MILLIS) return
-        preferences.edit { putLong(LAST_CHECK_KEY, now) }
+        if (!manual && (now - lastCheck) < CHECK_INTERVAL_MILLIS) return
+        if (manual) {
+            updateCheckMessage = null
+        } else {
+            preferences.edit { putLong(LAST_CHECK_KEY, now) }
+        }
 
+        isCheckingForUpdate = true
         lifecycleScope.launch {
             try {
-                availableRelease = withContext(Dispatchers.IO) {
+                val release = withContext(Dispatchers.IO) {
                     releaseRepository.findNewerRelease(BuildConfig.VERSION_NAME)
+                }
+                availableRelease = release
+                if (manual) {
+                    updateCheckMessage = if (release == null) {
+                        "You're using the latest version."
+                    } else {
+                        "An update is available."
+                    }
                 }
             } catch (exception: CancellationException) {
                 throw exception
             } catch (exception: Exception) {
                 preferences.edit { remove(LAST_CHECK_KEY) }
+                if (manual) {
+                    updateCheckMessage = "Couldn't check for updates. Check your connection and try again."
+                }
                 Log.w(TAG, "GitHub release check failed.", exception)
+            } finally {
+                isCheckingForUpdate = false
             }
         }
     }
@@ -341,6 +364,9 @@ fun AppPreview() {
             palengkeRepository = palengkeRepository,
             accountName = "",
             accountEmail = "",
+            isCheckingForUpdates = false,
+            updateCheckMessage = null,
+            onCheckForUpdates = {},
             onSignOut = {}
         )
     }

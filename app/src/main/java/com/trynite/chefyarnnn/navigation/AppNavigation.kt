@@ -78,6 +78,9 @@ fun AppScaffold(
     palengkeRepository: PalengkeRepository,
     accountName: String,
     accountEmail: String,
+    isCheckingForUpdates: Boolean,
+    updateCheckMessage: String?,
+    onCheckForUpdates: () -> Unit,
     onSignOut: () -> Unit
 ) {
     val backStack = remember { mutableStateListOf<Any>(AppRoute.Home) }
@@ -194,6 +197,9 @@ fun AppScaffold(
                                 AccountScreen(
                                     name = accountName,
                                     email = accountEmail,
+                                    isCheckingForUpdates = isCheckingForUpdates,
+                                    updateCheckMessage = updateCheckMessage,
+                                    onCheckForUpdates = onCheckForUpdates,
                                     onSignOut = onSignOut
                                 )
                             }

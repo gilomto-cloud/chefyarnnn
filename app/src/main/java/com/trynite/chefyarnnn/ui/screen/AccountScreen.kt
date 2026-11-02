@@ -25,6 +25,9 @@ import androidx.compose.ui.unit.dp
 fun AccountScreen(
     name: String,
     email: String,
+    isCheckingForUpdates: Boolean,
+    updateCheckMessage: String?,
+    onCheckForUpdates: () -> Unit,
     onSignOut: () -> Unit
 ) {
     Column(
@@ -57,6 +60,21 @@ fun AccountScreen(
             )
         }
         Spacer(modifier = Modifier.height(24.dp))
+        Button(
+            onClick = onCheckForUpdates,
+            enabled = !isCheckingForUpdates
+        ) {
+            Text(if (isCheckingForUpdates) "Checking…" else "Check for updates")
+        }
+        updateCheckMessage?.let { message ->
+            Spacer(modifier = Modifier.height(8.dp))
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(modifier = Modifier.height(16.dp))
         Button(onClick = onSignOut) {
             Text("Sign out")
         }
