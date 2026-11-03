@@ -26,7 +26,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.Chat
 import androidx.compose.material.icons.automirrored.rounded.MenuBook
 import androidx.compose.material.icons.rounded.AccessTime
 import androidx.compose.material.icons.rounded.AddShoppingCart
@@ -82,7 +81,6 @@ fun RecipeDetailScreen(
     recipeRepository: RecipeRepository,
     palengkeRepository: PalengkeRepository,
     onBackClick: () -> Unit,
-    onAskNanayChef: (String) -> Unit = {},
     viewModel: RecipeDetailViewModel = viewModel(
         key = recipeId,
         factory = RecipeDetailViewModel.Factory(recipeRepository, palengkeRepository)
@@ -236,35 +234,6 @@ fun RecipeDetailScreen(
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Shortcut button to ask Chef Cindy about this recipe
-                OutlinedButton(
-                    onClick = {
-                        val prompt = "Chef Cindy, may mga tips ka ba, pampalasa secrets, o pwedeng ipalit na sangkap para sa resipeng '${recipe.title}'?"
-                        onAskNanayChef(prompt)
-                    },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .heightIn(min = 48.dp),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = ButtonDefaults.outlinedButtonColors(
-                        contentColor = MaterialTheme.colorScheme.primary
-                    )
-                ) {
-                    Icon(
-                        imageVector = Icons.AutoMirrored.Rounded.Chat,
-                        contentDescription = null,
-                        modifier = Modifier.size(18.dp)
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Magtanong kay Chef Cindy tungkol sa resipeng ito",
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
-                    )
-                }
 
                 Spacer(modifier = Modifier.height(24.dp))
 

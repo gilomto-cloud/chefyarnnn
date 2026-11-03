@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Chat
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.AccountCircle
 import androidx.compose.material.icons.rounded.RestaurantMenu
@@ -30,7 +29,6 @@ import androidx.window.core.layout.WindowSizeClass
 import com.trynite.chefyarnnn.data.repository.ChefAiRepository
 import com.trynite.chefyarnnn.data.repository.PalengkeRepository
 import com.trynite.chefyarnnn.data.repository.RecipeRepository
-import com.trynite.chefyarnnn.ui.screen.AiChefChatScreen
 import com.trynite.chefyarnnn.ui.screen.AccountScreen
 import com.trynite.chefyarnnn.ui.screen.HomeScreen
 import com.trynite.chefyarnnn.ui.screen.PalengkeChecklistScreen
@@ -45,9 +43,6 @@ sealed interface AppRoute {
 
     @Serializable
     data object PantryScanner : AppRoute
-
-    @Serializable
-    data class AiChefChat(val initialPrompt: String = "") : AppRoute
 
     @Serializable
     data object PalengkeChecklist : AppRoute
@@ -66,7 +61,6 @@ enum class TopLevelDestination(
 ) {
     HOME(AppRoute.Home, "Resipe", Icons.Rounded.RestaurantMenu),
     PANTRY(AppRoute.PantryScanner, "Lutuin", Icons.Rounded.AutoAwesome),
-    CHAT(AppRoute.AiChefChat(), "Chef AI", Icons.AutoMirrored.Rounded.Chat),
     PALENGKE(AppRoute.PalengkeChecklist, "Palengke", Icons.Rounded.ShoppingBag),
     ACCOUNT(AppRoute.Account, "Account", Icons.Rounded.AccountCircle)
 }
@@ -94,7 +88,6 @@ fun AppScaffold(
     val isTopLevel = when (currentRoute) {
         is AppRoute.Home,
         is AppRoute.PantryScanner,
-        is AppRoute.AiChefChat,
         is AppRoute.PalengkeChecklist,
         is AppRoute.Account -> true
         else -> false
@@ -179,15 +172,6 @@ fun AppScaffold(
                                     }
                                 )
                             }
-                            is AppRoute.AiChefChat -> NavEntry(key) {
-                                AiChefChatScreen(
-                                    geminiRepository = geminiRepository,
-                                    onViewRecipe = { recipeId ->
-                                        backStack.add(AppRoute.RecipeDetail(recipeId))
-                                    },
-                                    initialPrompt = key.initialPrompt
-                                )
-                            }
                             is AppRoute.PalengkeChecklist -> NavEntry(key) {
                                 PalengkeChecklistScreen(
                                     palengkeRepository = palengkeRepository
@@ -212,9 +196,6 @@ fun AppScaffold(
                                         if (backStack.size > 1) {
                                             backStack.removeLastOrNull()
                                         }
-                                    },
-                                    onAskNanayChef = { prompt ->
-                                        backStack.add(AppRoute.AiChefChat(initialPrompt = prompt))
                                     }
                                 )
                             }
